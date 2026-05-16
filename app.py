@@ -7,9 +7,13 @@ from flask import Flask, render_template_string, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).parent))
 from database.db import (get_listings_by_type, get_listing_by_id,
-                          get_listings_by_source, init_email_table, save_email)
+                          get_listings_by_source, init_email_table, save_email,
+                          init_db)
 
 app = Flask(__name__)
+
+# Ensure all tables exist on every startup (critical for Railway/PostgreSQL)
+init_db()
 
 CHASSIS_FILTERS = ["E46", "E90", "E92", "F80", "G80", "F87", "F90", "X3"]
 REDDIT_SOURCES  = {"BimmerMarket", "E46", "E90", "F80", "BMWE46", "E9x"}
