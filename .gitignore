@@ -1,5 +1,10 @@
 venv/
+data/listings.db
+data/fetch.log
+.env
 __pycache__/
 *.pyc
-.env
-*.db
+*.pyo
+.DS_Store
+*.db-shm
+*.db-wal

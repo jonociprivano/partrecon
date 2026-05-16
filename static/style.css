@@ -1,0 +1,190 @@
+/* ── Reset ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Base ────────────────────────────────────────────── */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+               Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #efefed;
+  color: #111;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main   { flex: 1; }
+footer {
+  background: #fff;
+  border-top: 1px solid #e8e8e8;
+  padding: 24px 56px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #bbb;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.site-header {
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 20px 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Logo — flex row, baseline-aligned so the dot sits on the text baseline */
+.logo {
+  display: flex;
+  align-items: baseline;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.wm-part {
+  font-family: Georgia, "Times New Roman", "Book Antiqua", serif;
+  font-weight: 700;
+  font-style: italic;
+  color: #111;
+}
+
+/* The blue dot — exactly as specified:
+   6px circle, #2B4EFF, margin: 0 3px 4px
+   margin-bottom: 4px pulls the dot's flex baseline down by 4px,
+   lifting the visible dot above the text baseline */
+.logo-dot {
+  width: 6px;
+  height: 6px;
+  background: #2B4EFF;
+  border-radius: 50%;
+  margin: 0 3px 4px;
+  flex-shrink: 0;
+  align-self: flex-end; /* anchor to baseline row */
+}
+
+.wm-recon {
+  font-weight: 300;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-right: -3px; /* cancel the trailing letter-spacing gap */
+}
+
+/* Header nav */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.12s;
+}
+
+.nav-btn.active            { color: #2B4EFF; }
+.nav-btn:hover:not(.active){ color: #555; }
+
+/* ── Search band ─────────────────────────────────────── */
+.search-band {
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 18px 56px 20px;
+}
+
+.search-inner {
+  position: relative;
+  max-width: 500px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ccc;
+  pointer-events: none;
+  display: flex;
+}
+
+#search {
+  width: 100%;
+  padding: 2px 0 10px 22px;
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid #ddd;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 14px;
+  color: #111;
+  outline: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+
+#search::placeholder                   { color: #ccc; font-size: 14px; }
+#search:focus                          { border-bottom-color: #999; }
+#search::-webkit-search-cancel-button { display: none; }
+
+/* ── Filter band ─────────────────────────────────────── */
+.filter-band {
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 12px 56px;
+}
+
+.chassis-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chassis-btn {
+  font-family: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 500;
+  padding: 4px 13px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.chassis-btn:hover:not(.active) { border-color: #bbb; color: #555; }
+
+.chassis-btn.active {
+  background: #f0f2ff;
+  border-color: #2B4EFF;
+  color: #2B4EFF;
+}
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 860px) {
+  .site-header,
+  .search-band,
+  .filter-band,
+  footer        { padding-left: 24px; padding-right: 24px; }
+  .header-nav   { gap: 18px; }
+}
+
+@media (max-width: 540px) {
+  .site-header  { padding: 16px; }
+  .search-band  { padding: 14px 16px 16px; }
+  .filter-band  { padding: 10px 16px; }
+  footer        { padding: 20px 16px; }
+  .wm-recon     { letter-spacing: 1.5px; }
+}
