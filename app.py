@@ -492,7 +492,7 @@ function submitEmail() {
   var input = document.getElementById('email-input');
   var wrap  = document.getElementById('email-form-wrap');
   var email = input ? input.value.trim() : '';
-  if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+  if (!email || !/^[^@]+@[^@]+\\.[^@]+$/.test(email)) {
     input.style.borderColor = '#e33';
     return;
   }
