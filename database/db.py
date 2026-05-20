@@ -50,16 +50,8 @@ def _is_pg() -> bool:
     return bool(_DATABASE_URL)
 
 
-def _pg_url() -> str:
-    """Railway gives postgres://, psycopg2 needs postgresql://"""
-    url = _DATABASE_URL
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
-    return url
-
-
 def _q(sql: str) -> str:
-    """Convert SQLite ? placeholders to PostgreSQL %s."""
+    """Convert SQLite ? placeholders to PostgreSQL %s (pg8000 uses %s too)."""
     if _is_pg():
         return sql.replace("?", "%s")
     return sql
@@ -67,22 +59,50 @@ def _q(sql: str) -> str:
 
 def get_connection():
     if _is_pg():
-        import psycopg2
-        import psycopg2.extras
-        return psycopg2.connect(_pg_url(), cursor_factory=psycopg2.extras.RealDictCursor)
+        from urllib.parse import urlparse
+        import ssl as _ssl
+        import pg8000
+
+        parsed = urlparse(_DATABASE_URL)
+
+        # Railway requires SSL; disable cert verification for internal connections
+        ssl_ctx = _ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+        return pg8000.connect(
+            host=parsed.hostname,
+            database=parsed.path.lstrip("/"),
+            user=parsed.username,
+            password=parsed.password,
+            port=parsed.port or 5432,
+            ssl_context=ssl_ctx,
+        )
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
+def _row_to_dict(row, cur):
+    """Convert a db row to a plain dict regardless of driver."""
+    if row is None:
+        return None
+    if isinstance(row, (list, tuple)):
+        # pg8000 returns plain tuples; get column names from cursor.description
+        cols = [d[0] for d in cur.description]
+        return dict(zip(cols, row))
+    return dict(row)  # sqlite3.Row
+
+
 def _fetchall(cur) -> list:
     rows = cur.fetchall()
-    return [dict(r) for r in rows] if rows else []
+    if not rows:
+        return []
+    return [_row_to_dict(r, cur) for r in rows]
 
 
 def _fetchone(cur):
-    row = cur.fetchone()
-    return dict(row) if row else None
+    return _row_to_dict(cur.fetchone(), cur)
 
 
 def _is_unique_error(e: Exception) -> bool:
