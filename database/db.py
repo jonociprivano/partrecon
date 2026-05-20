@@ -7,7 +7,7 @@ Otherwise falls back to local SQLite at data/listings.db.
 Key differences handled automatically:
   - Placeholders:  SQLite uses ?   /  PostgreSQL uses %s
   - Auto-increment: AUTOINCREMENT  /  SERIAL
-  - IntegrityError: sqlite3        /  psycopg2 (both caught by string match)
+  - IntegrityError: sqlite3        /  pg8000 (both caught by string match)
 """
 import os
 import re
