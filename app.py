@@ -18,6 +18,12 @@ init_db()
 CHASSIS_FILTERS = ["E46", "E90", "E92", "F80", "G80", "F87", "F90", "X3"]
 REDDIT_SOURCES  = {"BimmerMarket", "E46", "E90", "F80", "BMWE46", "E9x"}
 
+# Part type filter pills — ordered by expected frequency
+PART_TYPE_FILTERS = [
+    "Wheels", "Exhaust", "Suspension", "Coilovers", "Brakes",
+    "Engine", "Seats", "Exterior", "Interior", "Electronics",
+]
+
 _CHASSIS_RE = {
     code: re.compile(rf'\b{re.escape(code)}\b', re.IGNORECASE)
     for code in [
@@ -28,6 +34,102 @@ _CHASSIS_RE = {
 }
 _PRICE_RE = re.compile(r'\$[\d,]+')
 _SOLD_RE  = re.compile(r'\bsold\b|\[s\]|price\s+drop|reduced', re.IGNORECASE)
+
+# Normalize part_type values from Claude into filter-pill buckets
+_PART_TYPE_MAP = {
+    # Wheels / tires
+    "wheels":              "Wheels",
+    "wheel":               "Wheels",
+    "wheels and tires":    "Wheels",
+    "tires":               "Wheels",
+    "tire":                "Wheels",
+    "rims":                "Wheels",
+    # Exhaust
+    "exhaust":             "Exhaust",
+    "exhaust tips":        "Exhaust",
+    "muffler":             "Exhaust",
+    "downpipe":            "Exhaust",
+    "catback":             "Exhaust",
+    "headers":             "Exhaust",
+    "catalyst":            "Exhaust",
+    "cats":                "Exhaust",
+    # Suspension
+    "coilovers":           "Coilovers",
+    "coilover":            "Coilovers",
+    "springs":             "Suspension",
+    "spring":              "Suspension",
+    "sway bar":            "Suspension",
+    "control arms":        "Suspension",
+    "control arm":         "Suspension",
+    "subframe":            "Suspension",
+    "suspension":          "Suspension",
+    "steering rack":       "Suspension",
+    "bushings":            "Suspension",
+    # Brakes
+    "brakes":              "Brakes",
+    "brake":               "Brakes",
+    "brake calipers":      "Brakes",
+    "brake calipers and pads": "Brakes",
+    "brake duct":          "Brakes",
+    "brake pads":          "Brakes",
+    "rotors":              "Brakes",
+    # Engine / drivetrain
+    "engine":              "Engine",
+    "transmission":        "Engine",
+    "turbo":               "Engine",
+    "intake":              "Engine",
+    "air intake system":   "Engine",
+    "supercharger":        "Engine",
+    "oil cooler":          "Engine",
+    "cooling":             "Engine",
+    "intercooler":         "Engine",
+    # Seats / interior
+    "seats":               "Seats",
+    "seat":                "Seats",
+    "interior":            "Interior",
+    "steering wheel":      "Interior",
+    "shift lever":         "Interior",
+    "dash":                "Interior",
+    "headliner":           "Interior",
+    "rear shade":          "Interior",
+    "rear sunshade":       "Interior",
+    "rear shades":         "Interior",
+    # Exterior
+    "bumper":              "Exterior",
+    "trunk lid":           "Exterior",
+    "hood":                "Exterior",
+    "splitter":            "Exterior",
+    "spoiler":             "Exterior",
+    "lip":                 "Exterior",
+    "diffuser":            "Exterior",
+    "rocker panels":       "Exterior",
+    "fender":              "Exterior",
+    "door":                "Exterior",
+    "mirrors":             "Exterior",
+    "headlights":          "Exterior",
+    "taillights":          "Exterior",
+    "widebody":            "Exterior",
+    # Electronics
+    "head unit":           "Electronics",
+    "ecu":                 "Electronics",
+    "electronics":         "Electronics",
+    "stereo":              "Electronics",
+    "speakers":            "Electronics",
+    "subframe reinforcement": "Suspension",
+    "smg parts":           "Engine",
+    "front spindles/hubs/knuckles": "Suspension",
+    "wheel lock nuts":     "Wheels",
+    "wheel lock":          "Wheels",
+    "front splitter":      "Exterior",
+}
+
+
+def normalize_part_type(raw: str) -> str:
+    """Map a Claude-returned part_type to a filter pill bucket, or 'Other'."""
+    if not raw or raw.lower() in ("unknown", ""):
+        return "Other"
+    key = raw.strip().lower()
+    return _PART_TYPE_MAP.get(key, "Other")
 
 
 def detect_chassis(title):
@@ -67,14 +169,18 @@ def enrich(listing):
         stamp = "PRICE DROP" if "price" in word.lower() or "reduced" in word.lower() else "SOLD"
     else:
         stamp = None
+
+    # Use normalized_title from Claude parser if available, else raw title
+    display_title = (listing.get("normalized_title") or "").strip() or title
+
     return {
         **listing,
-        "chassis_csv":  ",".join(chassis),
-        "chassis_tags": chassis,
-        "price":        extract_price(title),
-        "date_fmt":     format_date(listing.get("posted_at", "")),
-        "badge_bg":     badge_bg(listing["source"]),
-        "has_image":    (
+        "chassis_csv":    ",".join(chassis),
+        "chassis_tags":   chassis,
+        "price":          extract_price(title),
+        "date_fmt":       format_date(listing.get("posted_at", "")),
+        "badge_bg":       badge_bg(listing["source"]),
+        "has_image":      (
             bool(img)
             and img not in ("self", "default")
             and img.startswith("https://")
@@ -82,7 +188,9 @@ def enrich(listing):
             and "reddit.com" not in img
             and "redditstatic.com" not in img
         ),
-        "sold_stamp":   stamp,
+        "sold_stamp":     stamp,
+        "display_title":  display_title,
+        "part_type_bucket": normalize_part_type(listing.get("part_type", "")),
     }
 
 
@@ -93,7 +201,6 @@ TEMPLATE = """\
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PartRecon</title>
-<!-- Google Analytics — replace G-H4STZFJ3D0 with your real GA4 measurement ID from analytics.google.com -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-H4STZFJ3D0"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');</script>
 <style>
@@ -117,6 +224,8 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .pill.active { border-color: #2B4EFF; color: #2B4EFF; background: #f0f2ff; }
 .type-pill { border: 1px solid #ddd; border-radius: 20px; padding: 4px 13px; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #999; background: #fff; cursor: pointer; }
 .type-pill.active { border-color: #2B4EFF; color: #2B4EFF; background: #f0f2ff; }
+.part-pill { border: 1px solid #ddd; border-radius: 20px; padding: 4px 13px; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #999; background: #fff; cursor: pointer; }
+.part-pill.active { border-color: #2B4EFF; color: #2B4EFF; background: #f0f2ff; }
 .content { padding: 28px 56px; }
 .tabs { display: flex; gap: 24px; border-bottom: 1px solid #e8e8e8; margin-bottom: 6px; }
 .tab { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; padding-bottom: 10px; color: #bbb; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-left: none; border-right: none; border-top: none; }
@@ -140,6 +249,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .card-placeholder-text { position: relative; font-size: 16px; font-weight: 700; font-style: italic; color: rgba(255,255,255,0.05); letter-spacing: -0.5px; }
 .card-body { padding: 13px 14px 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .card-title { font-size: 13px; font-weight: 500; color: #111; line-height: 1.45; flex: 1; }
+.card-part-type { font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: #aaa; }
 .card-price { font-size: 14px; font-weight: 600; color: #111; letter-spacing: -0.3px; }
 .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f2f2f2; padding-top: 9px; margin-top: 4px; }
 .source-badge { font-size: 11px; color: #fff; background: #999; padding: 2px 8px; border-radius: 4px; }
@@ -154,12 +264,9 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .pag-btn { background: none; border: none; cursor: pointer; font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #999; padding: 0; }
 .pag-btn:disabled { color: #ddd; cursor: default; }
 .pag-btn:not(:disabled):hover { color: #111; }
-/* ── Sold overlay ───────────────────────────────────── */
 .card.is-sold { opacity: 0.6; }
 .sold-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.52); display: flex; align-items: center; justify-content: center; z-index: 2; }
 .sold-stamp { color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; border: 2px solid rgba(255,255,255,0.65); padding: 5px 12px; border-radius: 3px; }
-
-/* ── Email capture banner ────────────────────────────── */
 .email-banner { background: #fff; border-top: 1px solid #e8e8e8; padding: 24px 56px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .email-banner-left h3 { font-size: 14px; font-weight: 500; color: #111; margin-bottom: 4px; }
 .email-banner-left p  { font-size: 12px; color: #999; line-height: 1.5; }
@@ -169,40 +276,22 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .email-submit-btn { background: #2B4EFF; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
 .email-submit-btn:hover { background: #1a3de0; }
 .email-success { font-size: 13px; color: #2B4EFF; font-weight: 500; }
-
 .pag-info { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #2B4EFF; font-weight: 500; }
-
-/* ── Tablet: 600–1023px — 2-column grid ─────────────── */
-@media (max-width: 1023px) {
-  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-/* ── Mobile: under 600px ─────────────────────────────── */
+@media (max-width: 1023px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 599px) {
-  /* Header: stack logo above nav, both centered, narrow padding */
   .header { padding: 16px; flex-direction: column; align-items: center; gap: 10px; }
   .nav { justify-content: center; }
-
-  /* Reduce side padding on all bands */
   .search-bar  { padding: 12px 16px 14px; }
   .filters     { padding: 10px 16px; }
   .content     { padding: 20px 16px; }
   .footer      { padding: 20px 16px; }
-
-  /* Single-column grid */
   .grid { grid-template-columns: 1fr; }
-
-  /* Sort/price controls stack vertically, full width */
   .controls-row { flex-direction: column; align-items: stretch; gap: 8px; }
   .price-range  { width: 100%; }
   .price-range input { flex: 1; width: auto; min-width: 0; }
   #sort-select  { width: 100%; }
-
-  /* Shorter card images on mobile */
   .card-img        { height: 100px; }
   .card-placeholder { height: 100px; }
-
-  /* Pagination centered */
   .pagination { justify-content: center; }
 }
 </style>
@@ -232,6 +321,13 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     <button class="pill active" data-chassis="">All</button>
     {% for code in chassis_filters %}
     <button class="pill" data-chassis="{{ code }}">{{ code }}</button>
+    {% endfor %}
+  </div>
+  <div class="filter-row" id="part-type-row">
+    <span class="filter-label">Part</span>
+    <button class="part-pill active" data-part-type="">All</button>
+    {% for pt in part_type_filters %}
+    <button class="part-pill" data-part-type="{{ pt }}">{{ pt }}</button>
     {% endfor %}
   </div>
   <div class="filter-row">
@@ -269,9 +365,10 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
        href="/listing/{{ listing.id }}"
        data-type="{{ listing.listing_type | e }}"
        data-chassis="{{ listing.chassis_csv | e }}"
-       data-title="{{ listing.title | lower | e }}"
+       data-title="{{ listing.display_title | lower | e }}"
        data-price="{{ listing.price if listing.price is not none else '' }}"
-       data-post-type="{{ (listing.post_type or 'UNKNOWN') | e }}">
+       data-post-type="{{ (listing.post_type or 'UNKNOWN') | e }}"
+       data-part-type="{{ listing.part_type_bucket | e }}">
 
       <div class="card-media">
         {% if listing.is_new %}<span class="new-badge">New</span>{% endif %}
@@ -280,9 +377,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
         {% else %}
           <div class="card-placeholder">
             <div class="card-placeholder-grid">
-              {% for _ in range(24) %}
-              <div></div>
-              {% endfor %}
+              {% for _ in range(24) %}<div></div>{% endfor %}
             </div>
             <span class="card-placeholder-text">Part&middot;Recon</span>
           </div>
@@ -293,7 +388,10 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
       </div>
 
       <div class="card-body">
-        <div class="card-title">{{ listing.title }}</div>
+        {% if listing.part_type_bucket and listing.part_type_bucket != 'Other' %}
+        <div class="card-part-type">{{ listing.part_type_bucket }}</div>
+        {% endif %}
+        <div class="card-title">{{ listing.display_title }}</div>
         {% if listing.price %}
         <div class="card-price">{{ listing.price }}</div>
         {% endif %}
@@ -338,13 +436,13 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 
   var PAGE_SIZE  = 40;
   var currentPage = 1;
-  var lastSorted  = [];   /* sorted+filtered set for current view */
+  var lastSorted  = [];
 
-  /* ── DOM refs ──────────────────────────────────── */
   var cards      = Array.from(document.querySelectorAll('.card'));
   var search     = document.getElementById('search');
   var pills      = Array.from(document.querySelectorAll('.pill'));
   var typePills  = Array.from(document.querySelectorAll('.type-pill'));
+  var partPills  = Array.from(document.querySelectorAll('.part-pill'));
   var tabs       = Array.from(document.querySelectorAll('.tab'));
   var navLinks   = Array.from(document.querySelectorAll('.nav a[data-type]'));
   var countEl    = document.getElementById('count');
@@ -354,22 +452,24 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
   var sortSel    = document.getElementById('sort-select');
   var minEl      = document.getElementById('min-price');
   var maxEl      = document.getElementById('max-price');
+  var partRow    = document.getElementById('part-type-row');
 
-  /* ── State ─────────────────────────────────────── */
-  var state = { type: 'part', chassis: '', term: '', postType: '', sort: 'newest' };
+  var state = { type: 'part', chassis: '', term: '', postType: '', partType: '', sort: 'newest' };
 
-  /* ── Helpers ───────────────────────────────────── */
   function price(c) {
     var v = c.dataset.price;
     return (v && v !== '') ? parseFloat(v) : null;
   }
 
-  /* ── Main render ────────────────────────────────── */
+  /* Hide Part filter row when on Vehicles tab */
+  function syncPartRow() {
+    if (partRow) partRow.style.display = state.type === 'vehicle' ? 'none' : '';
+  }
+
   function run() {
     var minP = (minEl && minEl.value !== '') ? parseFloat(minEl.value) : null;
     var maxP = (maxEl && maxEl.value !== '') ? parseFloat(maxEl.value) : null;
 
-    /* 1 — Filter */
     var filtered = cards.filter(function (c) {
       if (c.dataset.type !== state.type) return false;
       if (state.chassis) {
@@ -377,6 +477,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
         if (ch.indexOf(state.chassis) === -1) return false;
       }
       if (state.postType && (c.dataset.postType || '') !== state.postType) return false;
+      if (state.partType && (c.dataset.partType || '') !== state.partType) return false;
       if (state.term && (c.dataset.title || '').indexOf(state.term) === -1) return false;
       if (minP !== null || maxP !== null) {
         var p = price(c);
@@ -387,7 +488,6 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
       return true;
     });
 
-    /* 2 — Sort (assign CSS order — no DOM mutation) */
     var sorted = filtered.slice();
     if (state.sort === 'price-asc') {
       sorted.sort(function (a, b) {
@@ -404,11 +504,9 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
         return pb - pa;
       });
     }
-    /* Apply visual order via CSS — grid/flex containers respect this */
     cards.forEach(function (c) { c.style.order = ''; });
     sorted.forEach(function (c, i) { c.style.order = i; });
 
-    /* 3 — Paginate */
     lastSorted = sorted;
     var total      = sorted.length;
     var totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -418,27 +516,24 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     var start     = (currentPage - 1) * PAGE_SIZE;
     var pageSlice = sorted.slice(start, start + PAGE_SIZE);
 
-    /* 4 — Show / hide (pure CSS, no DOM moves) */
     cards.forEach(function (c) { c.style.display = 'none'; });
     pageSlice.forEach(function (c) { c.style.display = ''; });
 
-    /* 5 — Update chrome */
     if (countEl)  countEl.textContent  = total.toLocaleString() + ' LISTINGS';
     if (pageInfo) pageInfo.textContent = 'Page ' + currentPage + ' of ' + totalPages;
     if (prevBtn)  prevBtn.disabled     = (currentPage <= 1);
     if (nextBtn)  nextBtn.disabled     = (currentPage >= totalPages);
   }
 
-  /* ── Tab / nav type switch ──────────────────────── */
   function setType(type) {
     state.type  = type;
     currentPage = 1;
     tabs.forEach(function (t) { t.classList.toggle('active', t.dataset.type === type); });
     navLinks.forEach(function (a) { a.classList.toggle('active', a.dataset.type === type); });
+    syncPartRow();
     run();
   }
 
-  /* ── Event wiring ───────────────────────────────── */
   tabs.forEach(function (t) {
     t.addEventListener('click', function () { setType(t.dataset.type); });
   });
@@ -470,6 +565,16 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     });
   });
 
+  partPills.forEach(function (p) {
+    p.addEventListener('click', function () {
+      partPills.forEach(function (x) { x.classList.remove('active'); });
+      p.classList.add('active');
+      state.partType = p.dataset.partType || '';
+      currentPage    = 1;
+      run();
+    });
+  });
+
   if (prevBtn) prevBtn.addEventListener('click', function () {
     if (currentPage > 1) { currentPage--; run(); window.scrollTo(0, 0); }
   });
@@ -489,7 +594,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
   if (minEl) minEl.addEventListener('input', onPrice);
   if (maxEl) maxEl.addEventListener('input', onPrice);
 
-  /* ── Initial render ─────────────────────────────── */
+  syncPartRow();
   run();
 
 }());
@@ -606,7 +711,6 @@ ABOUT_TEMPLATE = """\
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PartRecon — About</title>
-<!-- Google Analytics — replace G-H4STZFJ3D0 with your real GA4 measurement ID from analytics.google.com -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-H4STZFJ3D0"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');</script>
 <style>
@@ -643,7 +747,6 @@ DETAIL_TEMPLATE = """\
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ listing.title }} — PartRecon</title>
-<!-- Google Analytics — replace G-H4STZFJ3D0 with your real GA4 measurement ID from analytics.google.com -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-H4STZFJ3D0"></script>
 <script>{% raw %}window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');{% endraw %}</script>
 <style>
@@ -653,6 +756,7 @@ DETAIL_TEMPLATE = """\
 .detail-back:hover{color:#111}
 .detail-badges{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .detail-post-type{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:3px 10px;border-radius:4px;background:#f0f2ff;color:#2B4EFF}
+.detail-part-type{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:3px 10px;border-radius:4px;background:#f5f5f5;color:#888}
 .detail-title{font-size:22px;font-weight:700;color:#111;line-height:1.4;margin-bottom:16px;letter-spacing:-0.3px}
 .detail-price{font-size:28px;font-weight:700;color:#111;margin-bottom:20px;letter-spacing:-0.5px}
 .detail-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#999;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #ebebeb}
@@ -683,13 +787,16 @@ DETAIL_TEMPLATE = """\
     {% if listing.post_type and listing.post_type != 'UNKNOWN' %}
     <span class="detail-post-type">{{ listing.post_type }}</span>
     {% endif %}
+    {% if listing.part_type_bucket and listing.part_type_bucket != 'Other' %}
+    <span class="detail-part-type">{{ listing.part_type_bucket }}</span>
+    {% endif %}
     <span class="source-badge-sm" style="background:{{ listing.badge_bg }}">{{ listing.source }}</span>
     {% for tag in listing.chassis_tags %}
     <span style="font-size:11px;background:#eef;color:#55b;padding:2px 8px;border-radius:4px;font-weight:600">{{ tag }}</span>
     {% endfor %}
   </div>
 
-  <h1 class="detail-title">{{ listing.title }}</h1>
+  <h1 class="detail-title">{{ listing.display_title }}</h1>
 
   {% if listing.price %}
   <div class="detail-price">{{ listing.price }}</div>
@@ -699,6 +806,7 @@ DETAIL_TEMPLATE = """\
     <span>{{ listing.source }}</span>
     {% if listing.date_fmt %}<span>{{ listing.date_fmt }}</span>{% endif %}
     {% if listing.listing_type == 'vehicle' %}<span>Vehicle</span>{% endif %}
+    {% if listing.condition and listing.condition != 'Unknown' %}<span>{{ listing.condition }}</span>{% endif %}
   </div>
 
   {% if listing.post_text %}
@@ -720,7 +828,7 @@ DETAIL_TEMPLATE = """\
           <span class="card-placeholder-text">Part&middot;Recon</span>
         </div>
         <div class="card-body">
-          <div class="card-title">{{ m.title }}</div>
+          <div class="card-title">{{ m.display_title }}</div>
           <div class="card-footer">
             <span class="source-badge-sm" style="background:{{ m.badge_bg }}">{{ m.source }}</span>
             <span class="card-date">{{ m.date_fmt }}</span>
@@ -757,25 +865,18 @@ TERMS_TEMPLATE = (
     """
 <div class="legal-wrap">
   <h1>Terms of Service</h1>
-
   <h2>1. Content Ownership</h2>
   <p>PartRecon aggregates publicly available listings from BMW forums and communities across the internet. We do not own, create, or verify any listing content. All listings remain the property of their original authors and platforms.</p>
-
   <h2>2. No Warranty on Listings</h2>
   <p>Listings displayed on PartRecon may be outdated, inaccurate, or no longer available. We make no representations about the accuracy, completeness, or availability of any listing. Always verify directly with the original source before making any purchase decisions.</p>
-
   <h2>3. Transactions</h2>
   <p>PartRecon is an aggregation service only. We are not a party to any transaction between buyers and sellers. We accept no responsibility or liability for any transaction, dispute, loss, or damage arising from listings found through this site.</p>
-
   <h2>4. Age Requirement</h2>
   <p>You must be 18 years of age or older to use PartRecon.</p>
-
   <h2>5. Content Removal</h2>
   <p>We reserve the right to remove any listing or content at any time for any reason, including but not limited to content that is fraudulent, illegal, or violates these terms.</p>
-
   <h2>6. Changes to Terms</h2>
   <p>We may update these terms at any time. Continued use of PartRecon after changes constitutes acceptance of the updated terms.</p>
-
   <h2>Contact</h2>
   <p>Questions about these terms? Email <a href="mailto:partrecon@gmail.com">partrecon@gmail.com</a></p>
 </div>
@@ -793,26 +894,19 @@ PRIVACY_TEMPLATE = (
     """
 <div class="legal-wrap">
   <h1>Privacy Policy</h1>
-
   <h2>Information We Collect</h2>
   <p><strong>Email addresses:</strong> If you voluntarily submit your email address through our notification signup form, we store it securely. We use it only to notify you about PartRecon features and updates.</p>
   <p><strong>Analytics data:</strong> We use Google Analytics 4 to understand how visitors use the site. This includes pages visited, time on site, and general location (country/region). Google Analytics uses cookies to collect this data. No personally identifiable information is collected through analytics.</p>
-
   <h2>How We Use Your Information</h2>
   <p>Email addresses are used solely to send PartRecon product updates. We do not send marketing emails on behalf of third parties. Analytics data is used to improve the site experience.</p>
-
   <h2>Data Sharing</h2>
   <p>We do not sell, rent, or share your personal information with third parties. Analytics data is processed by Google under their privacy policy.</p>
-
   <h2>Cookies</h2>
   <p>PartRecon uses cookies through Google Analytics to measure site usage. These cookies do not identify you personally. You can disable cookies in your browser settings, though this may affect site functionality.</p>
-
   <h2>Data Deletion</h2>
   <p>To request deletion of your email address or any other data we hold about you, email <a href="mailto:partrecon@gmail.com">partrecon@gmail.com</a>. We will process your request within 30 days.</p>
-
   <h2>Changes to This Policy</h2>
   <p>We may update this policy at any time. The current version is always available at this URL.</p>
-
   <h2>Contact</h2>
   <p>Privacy questions? Email <a href="mailto:partrecon@gmail.com">partrecon@gmail.com</a></p>
 </div>
@@ -831,6 +925,7 @@ def index():
         TEMPLATE,
         listings=parts + vehicles,
         chassis_filters=CHASSIS_FILTERS,
+        part_type_filters=PART_TYPE_FILTERS,
         parts_count=len(parts),
         vehicles_count=len(vehicles),
     )
