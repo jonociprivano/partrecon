@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3 /Users/jancipriano/Desktop/partrecon/data/listings.db \"DELETE FROM listings;\")",
+      "Bash(sqlite3 *)",
+      "Bash(crontab *)",
+      "Bash(curl -s http://localhost:5000)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -v http://localhost:5000)",
+      "Bash(curl -s http://127.0.0.1:5000)",
+      "Bash(pkill -f \"python app.py\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git rm *)"
+    ]
+  }
+}

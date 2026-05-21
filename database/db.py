@@ -8,6 +8,12 @@ Key differences handled automatically:
   - Placeholders:  SQLite uses ?   /  PostgreSQL uses %s
   - Auto-increment: AUTOINCREMENT  /  SERIAL
   - IntegrityError: sqlite3        /  pg8000 (both caught by string match)
+
+Phase 2 additions:
+  - part_type        TEXT   — normalized part name from Claude parser
+  - condition        TEXT   — "New" / "Used" / "Unknown"
+  - normalized_title TEXT   — clean readable title from Claude parser
+  - ai_parsed        INTEGER DEFAULT 0  — 1 once Claude has processed this row
 """
 import os
 import re
@@ -51,7 +57,7 @@ def _is_pg() -> bool:
 
 
 def _q(sql: str) -> str:
-    """Convert SQLite ? placeholders to PostgreSQL %s (pg8000 uses %s too)."""
+    """Convert SQLite ? placeholders to PostgreSQL %s."""
     if _is_pg():
         return sql.replace("?", "%s")
     return sql
@@ -65,7 +71,6 @@ def get_connection():
 
         parsed = urlparse(_DATABASE_URL)
 
-        # Railway requires SSL; disable cert verification for internal connections
         ssl_ctx = _ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = _ssl.CERT_NONE
@@ -88,10 +93,9 @@ def _row_to_dict(row, cur):
     if row is None:
         return None
     if isinstance(row, (list, tuple)):
-        # pg8000 returns plain tuples; get column names from cursor.description
         cols = [d[0] for d in cur.description]
         return dict(zip(cols, row))
-    return dict(row)  # sqlite3.Row
+    return dict(row)
 
 
 def _fetchall(cur) -> list:
@@ -118,28 +122,35 @@ def init_db():
         cur = conn.cursor()
 
         if _is_pg():
-            # PostgreSQL — SERIAL for autoincrement, IF NOT EXISTS for migrations
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS listings (
-                    id           SERIAL PRIMARY KEY,
-                    source       TEXT NOT NULL,
-                    title        TEXT NOT NULL,
-                    url          TEXT NOT NULL UNIQUE,
-                    image_url    TEXT,
-                    post_text    TEXT,
-                    posted_at    TEXT,
-                    created_at   TEXT NOT NULL,
-                    listing_type TEXT NOT NULL DEFAULT 'part',
-                    post_type    TEXT DEFAULT 'UNKNOWN',
-                    price        REAL,
-                    is_new       INTEGER DEFAULT 0
+                    id                SERIAL PRIMARY KEY,
+                    source            TEXT NOT NULL,
+                    title             TEXT NOT NULL,
+                    url               TEXT NOT NULL UNIQUE,
+                    image_url         TEXT,
+                    post_text         TEXT,
+                    posted_at         TEXT,
+                    created_at        TEXT NOT NULL,
+                    listing_type      TEXT NOT NULL DEFAULT 'part',
+                    post_type         TEXT DEFAULT 'UNKNOWN',
+                    price             REAL,
+                    is_new            INTEGER DEFAULT 0,
+                    part_type         TEXT DEFAULT 'Unknown',
+                    condition         TEXT DEFAULT 'Unknown',
+                    normalized_title  TEXT,
+                    ai_parsed         INTEGER DEFAULT 0
                 )
             """)
             for col, defn in [
-                ("listing_type", "TEXT NOT NULL DEFAULT 'part'"),
-                ("post_type",    "TEXT DEFAULT 'UNKNOWN'"),
-                ("price",        "REAL"),
-                ("is_new",       "INTEGER DEFAULT 0"),
+                ("listing_type",     "TEXT NOT NULL DEFAULT 'part'"),
+                ("post_type",        "TEXT DEFAULT 'UNKNOWN'"),
+                ("price",            "REAL"),
+                ("is_new",           "INTEGER DEFAULT 0"),
+                ("part_type",        "TEXT DEFAULT 'Unknown'"),
+                ("condition",        "TEXT DEFAULT 'Unknown'"),
+                ("normalized_title", "TEXT"),
+                ("ai_parsed",        "INTEGER DEFAULT 0"),
             ]:
                 cur.execute(
                     f"ALTER TABLE listings ADD COLUMN IF NOT EXISTS {col} {defn}"
@@ -153,28 +164,35 @@ def init_db():
             """)
 
         else:
-            # SQLite — AUTOINCREMENT, try/except migrations
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS listings (
-                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source       TEXT NOT NULL,
-                    title        TEXT NOT NULL,
-                    url          TEXT NOT NULL UNIQUE,
-                    image_url    TEXT,
-                    post_text    TEXT,
-                    posted_at    TEXT,
-                    created_at   TEXT NOT NULL,
-                    listing_type TEXT NOT NULL DEFAULT 'part',
-                    post_type    TEXT DEFAULT 'UNKNOWN',
-                    price        REAL,
-                    is_new       INTEGER DEFAULT 0
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source            TEXT NOT NULL,
+                    title             TEXT NOT NULL,
+                    url               TEXT NOT NULL UNIQUE,
+                    image_url         TEXT,
+                    post_text         TEXT,
+                    posted_at         TEXT,
+                    created_at        TEXT NOT NULL,
+                    listing_type      TEXT NOT NULL DEFAULT 'part',
+                    post_type         TEXT DEFAULT 'UNKNOWN',
+                    price             REAL,
+                    is_new            INTEGER DEFAULT 0,
+                    part_type         TEXT DEFAULT 'Unknown',
+                    condition         TEXT DEFAULT 'Unknown',
+                    normalized_title  TEXT,
+                    ai_parsed         INTEGER DEFAULT 0
                 )
             """)
             for sql in [
-                "ALTER TABLE listings ADD COLUMN listing_type TEXT NOT NULL DEFAULT 'part'",
-                "ALTER TABLE listings ADD COLUMN post_type    TEXT DEFAULT 'UNKNOWN'",
-                "ALTER TABLE listings ADD COLUMN price        REAL",
-                "ALTER TABLE listings ADD COLUMN is_new       INTEGER DEFAULT 0",
+                "ALTER TABLE listings ADD COLUMN listing_type     TEXT NOT NULL DEFAULT 'part'",
+                "ALTER TABLE listings ADD COLUMN post_type        TEXT DEFAULT 'UNKNOWN'",
+                "ALTER TABLE listings ADD COLUMN price            REAL",
+                "ALTER TABLE listings ADD COLUMN is_new           INTEGER DEFAULT 0",
+                "ALTER TABLE listings ADD COLUMN part_type        TEXT DEFAULT 'Unknown'",
+                "ALTER TABLE listings ADD COLUMN condition        TEXT DEFAULT 'Unknown'",
+                "ALTER TABLE listings ADD COLUMN normalized_title TEXT",
+                "ALTER TABLE listings ADD COLUMN ai_parsed        INTEGER DEFAULT 0",
             ]:
                 try:
                     cur.execute(sql)
@@ -233,6 +251,10 @@ def get_listings_by_source(source: str, exclude_id: int, limit: int = 4) -> list
 
 def insert_listing(source, title, url, image_url, post_text, posted_at,
                    listing_type="part", post_type=None, price=None) -> bool:
+    """
+    Insert a new listing. Returns True if inserted, False if duplicate.
+    Claude parsing happens after insert via parse_and_update_listing().
+    """
     if post_type is None:
         post_type = detect_post_type(title)
     if price is None:
@@ -245,11 +267,13 @@ def insert_listing(source, title, url, image_url, post_text, posted_at,
             _q("""
             INSERT INTO listings
                 (source, title, url, image_url, post_text, posted_at,
-                 created_at, listing_type, post_type, price, is_new)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                 created_at, listing_type, post_type, price, is_new,
+                 part_type, condition, normalized_title, ai_parsed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1,
+                    'Unknown', 'Unknown', ?, 0)
             """),
             (source, title, url, image_url, post_text, posted_at,
-             created_at, listing_type, post_type, price),
+             created_at, listing_type, post_type, price, title),
         )
         conn.commit()
         return True
@@ -258,6 +282,42 @@ def insert_listing(source, title, url, image_url, post_text, posted_at,
         if _is_unique_error(e):
             return False
         raise
+    finally:
+        conn.close()
+
+
+def mark_listing_parsed(listing_id: int, part_type: str,
+                        condition: str, normalized_title: str) -> None:
+    """Write Claude parser results back to a listing row."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            _q("""
+            UPDATE listings
+               SET part_type = ?,
+                   condition = ?,
+                   normalized_title = ?,
+                   ai_parsed = 1
+             WHERE id = ?
+            """),
+            (part_type, condition, normalized_title, listing_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_unparsed_listings(limit: int = 50) -> list:
+    """Return listings that haven't been through the Claude parser yet."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            _q("SELECT id, title FROM listings WHERE ai_parsed = 0 ORDER BY id DESC LIMIT ?"),
+            (limit,),
+        )
+        return _fetchall(cur)
     finally:
         conn.close()
 

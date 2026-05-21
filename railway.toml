@@ -1,0 +1,40 @@
+[build]
+builder = "nixpacks"
+
+# ── Web service (your existing Flask app) ────────────────────────────────────
+[deploy]
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# ── Cron job: Reddit scraper — every 15 min at :00 :15 :30 :45 ───────────────
+[[services]]
+name = "cron-reddit"
+
+[services.deploy]
+startCommand = "python -m scraper.runner reddit"
+
+[services.cron]
+schedule = "0,15,30,45 * * * *"
+
+# ── Cron job: NAM3Forum scraper — every 15 min at :02 :17 :32 :47 ────────────
+[[services]]
+name = "cron-nam3forum"
+
+[services.deploy]
+startCommand = "python -m scraper.runner nam3forum"
+
+[services.cron]
+schedule = "2,17,32,47 * * * *"
+
+# ── Cron job: Bimmerpost scraper — every 15 min at :06 :21 :36 :51 ───────────
+[[services]]
+name = "cron-bimmerpost"
+
+[services.deploy]
+startCommand = "python -m scraper.runner bimmerpost"
+
+[services.cron]
+schedule = "6,21,36,51 * * * *"
