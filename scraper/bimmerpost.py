@@ -50,9 +50,11 @@ CLASSIC_FORUMS = [
     ("https://f80.bimmerpost.com/forums", 625, "F80/F82 Cars for Sale",          "vehicle"),
 
     # ── G80/G82 M3/M4 ─────────────────────────────────────────────────────────
-    ("https://g80.bimmerpost.com/forums", 911, "G80/G82 Members Classifieds",    "part"),
+    # f=911 is JS-rendered parent, skipped — sub-forums work fine
     ("https://g80.bimmerpost.com/forums", 912, "G80/G82 Exterior Parts",         "part"),
     ("https://g80.bimmerpost.com/forums", 913, "G80/G82 Interior Parts",         "part"),
+    ("https://g80.bimmerpost.com/forums", 914, "G80/G82 Wheels and Tires",       "part"),
+    ("https://g80.bimmerpost.com/forums", 915, "G80/G82 Engine / Drivetrain",    "part"),
     ("https://g80.bimmerpost.com/forums", 921, "G80/G82 Cars for Sale",          "vehicle"),
 
     # ── F87 M2 ────────────────────────────────────────────────────────────────
