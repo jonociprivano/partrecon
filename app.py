@@ -144,8 +144,12 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f2f2f2; padding-top: 9px; margin-top: 4px; }
 .source-badge { font-size: 11px; color: #fff; background: #999; padding: 2px 8px; border-radius: 4px; }
 .card-date { font-size: 11px; color: #bbb; }
-.footer { background: #fff; border-top: 1px solid #e8e8e8; padding: 24px 56px; margin-top: 8px; }
+.footer { background: #fff; border-top: 1px solid #e8e8e8; padding: 24px 56px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .footer p { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #bbb; }
+.footer-disclaimer { font-size: 11px !important; letter-spacing: 0 !important; text-transform: none !important; color: #bbb; line-height: 1.5; }
+.footer-links { font-size: 11px !important; letter-spacing: 0.06em !important; text-transform: uppercase !important; }
+.footer-links a { color: #bbb; text-decoration: none; }
+.footer-links a:hover { color: #888; }
 .pagination { display: flex; align-items: center; gap: 20px; padding: 28px 0 8px; }
 .pag-btn { background: none; border: none; cursor: pointer; font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #999; padding: 0; }
 .pag-btn:disabled { color: #ddd; cursor: default; }
@@ -324,6 +328,8 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 
 <div class="footer">
   <p>PartRecon &mdash; Aggregating BMW parts across the web</p>
+  <p class="footer-disclaimer">PartRecon aggregates publicly available listings from BMW forums. We do not own or verify any listing content.</p>
+  <p class="footer-links"><a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a></p>
 </div>
 
 <script>
@@ -534,7 +540,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 #email-input{border:1px solid #ddd;border-radius:6px;padding:8px 12px;font-size:13px;width:240px;outline:none;font-family:inherit;color:#111}
 .email-submit-btn{background:#2B4EFF;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit}
 .email-success{font-size:13px;color:#2B4EFF;font-weight:500}
-.site-footer{background:#fff;border-top:1px solid #e8e8e8;padding:24px 56px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#bbb}
+.site-footer{background:#fff;border-top:1px solid #e8e8e8;padding:24px 56px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#bbb;display:flex;flex-direction:column;gap:6px}
+.site-footer-disclaimer{font-size:11px;letter-spacing:0;text-transform:none;color:#bbb;line-height:1.5}
+.site-footer-links{font-size:11px;letter-spacing:0.06em}
+.site-footer-links a{color:#bbb;text-decoration:none}
+.site-footer-links a:hover{color:#888}
 .source-badge-sm{font-size:11px;color:#fff;padding:2px 8px;border-radius:4px;font-weight:400}
 @media(max-width:599px){.header{padding:16px;flex-direction:column;align-items:center;gap:10px}.nav{justify-content:center}.email-banner,.site-footer{padding-left:16px;padding-right:16px}}
 """
@@ -582,7 +592,11 @@ _SHELL_HEADER = """
 
 _SHELL_FOOTER = """
 {email_banner}
-<div class="site-footer">PartRecon &mdash; Aggregating BMW parts across the web</div>
+<div class="site-footer">
+  <div>PartRecon &mdash; Aggregating BMW parts across the web</div>
+  <div class="site-footer-disclaimer">PartRecon aggregates publicly available listings from BMW forums. We do not own or verify any listing content.</div>
+  <div class="site-footer-links"><a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a></div>
+</div>
 {email_js}
 """
 
@@ -724,6 +738,90 @@ DETAIL_TEMPLATE = """\
 """
 
 
+_LEGAL_CSS = _SHELL_CSS + """
+.legal-wrap{{max-width:680px;margin:56px auto;padding:0 56px}}
+.legal-wrap h1{{font-size:26px;font-weight:700;color:#111;margin-bottom:28px;letter-spacing:-0.4px}}
+.legal-wrap h2{{font-size:15px;font-weight:600;color:#111;margin:28px 0 10px}}
+.legal-wrap p{{font-size:15px;color:#444;line-height:1.75;margin-bottom:14px}}
+.legal-wrap a{{color:#2B4EFF;text-decoration:none}}
+.legal-wrap a:hover{{text-decoration:underline}}
+@media(max-width:599px){{.legal-wrap{{padding:0 16px;margin:36px auto}}}}
+"""
+
+TERMS_TEMPLATE = (
+    "<!DOCTYPE html><html><head>"
+    "<meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<title>Terms of Service — PartRecon</title>"
+    "<style>" + _LEGAL_CSS + "</style></head><body>"
+    + _SHELL_HEADER.format(about_active="") +
+    """
+<div class="legal-wrap">
+  <h1>Terms of Service</h1>
+
+  <h2>1. Content Ownership</h2>
+  <p>PartRecon aggregates publicly available listings from BMW forums and communities across the internet. We do not own, create, or verify any listing content. All listings remain the property of their original authors and platforms.</p>
+
+  <h2>2. No Warranty on Listings</h2>
+  <p>Listings displayed on PartRecon may be outdated, inaccurate, or no longer available. We make no representations about the accuracy, completeness, or availability of any listing. Always verify directly with the original source before making any purchase decisions.</p>
+
+  <h2>3. Transactions</h2>
+  <p>PartRecon is an aggregation service only. We are not a party to any transaction between buyers and sellers. We accept no responsibility or liability for any transaction, dispute, loss, or damage arising from listings found through this site.</p>
+
+  <h2>4. Age Requirement</h2>
+  <p>You must be 18 years of age or older to use PartRecon.</p>
+
+  <h2>5. Content Removal</h2>
+  <p>We reserve the right to remove any listing or content at any time for any reason, including but not limited to content that is fraudulent, illegal, or violates these terms.</p>
+
+  <h2>6. Changes to Terms</h2>
+  <p>We may update these terms at any time. Continued use of PartRecon after changes constitutes acceptance of the updated terms.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about these terms? Email <a href="mailto:partrecon@gmail.com">partrecon@gmail.com</a></p>
+</div>
+"""
+    + _SHELL_FOOTER.format(email_banner=_EMAIL_BANNER, email_js=_EMAIL_JS)
+    + "</body></html>"
+)
+
+PRIVACY_TEMPLATE = (
+    "<!DOCTYPE html><html><head>"
+    "<meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<title>Privacy Policy — PartRecon</title>"
+    "<style>" + _LEGAL_CSS + "</style></head><body>"
+    + _SHELL_HEADER.format(about_active="") +
+    """
+<div class="legal-wrap">
+  <h1>Privacy Policy</h1>
+
+  <h2>Information We Collect</h2>
+  <p><strong>Email addresses:</strong> If you voluntarily submit your email address through our notification signup form, we store it securely. We use it only to notify you about PartRecon features and updates.</p>
+  <p><strong>Analytics data:</strong> We use Google Analytics 4 to understand how visitors use the site. This includes pages visited, time on site, and general location (country/region). Google Analytics uses cookies to collect this data. No personally identifiable information is collected through analytics.</p>
+
+  <h2>How We Use Your Information</h2>
+  <p>Email addresses are used solely to send PartRecon product updates. We do not send marketing emails on behalf of third parties. Analytics data is used to improve the site experience.</p>
+
+  <h2>Data Sharing</h2>
+  <p>We do not sell, rent, or share your personal information with third parties. Analytics data is processed by Google under their privacy policy.</p>
+
+  <h2>Cookies</h2>
+  <p>PartRecon uses cookies through Google Analytics to measure site usage. These cookies do not identify you personally. You can disable cookies in your browser settings, though this may affect site functionality.</p>
+
+  <h2>Data Deletion</h2>
+  <p>To request deletion of your email address or any other data we hold about you, email <a href="mailto:partrecon@gmail.com">partrecon@gmail.com</a>. We will process your request within 30 days.</p>
+
+  <h2>Changes to This Policy</h2>
+  <p>We may update this policy at any time. The current version is always available at this URL.</p>
+
+  <h2>Contact</h2>
+  <p>Privacy questions? Email <a href="mailto:partrecon@gmail.com">partrecon@gmail.com</a></p>
+</div>
+"""
+    + _SHELL_FOOTER.format(email_banner=_EMAIL_BANNER, email_js=_EMAIL_JS)
+    + "</body></html>"
+)
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
@@ -741,6 +839,16 @@ def index():
 @app.route("/about")
 def about():
     return ABOUT_TEMPLATE
+
+
+@app.route("/terms")
+def terms():
+    return TERMS_TEMPLATE
+
+
+@app.route("/privacy")
+def privacy():
+    return PRIVACY_TEMPLATE
 
 
 @app.route("/listing/<int:listing_id>")
