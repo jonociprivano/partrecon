@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 init_db()
 
-CHASSIS_FILTERS = ["E46", "E90", "E92", "F80", "G80", "F87", "F90", "X3"]
+CHASSIS_FILTERS = ["E46", "E90", "E92", "F80", "F82", "G80", "G82", "F87", "G87", "F90", "X3"]
 REDDIT_SOURCES  = {"BimmerMarket", "E46", "E90", "F80", "BMWE46", "E9x"}
 
 PART_TYPE_FILTERS = [
@@ -80,10 +80,10 @@ def detect_chassis(title):
 # but the source subdomain or URL path makes it unambiguous
 _URL_CHASSIS_MAP = [
     ("e46m3.bimmerpost.com",  ["E46"]),
-    ("f80.bimmerpost.com",    ["F80"]),
-    ("g80.bimmerpost.com",    ["G80"]),
     ("f87.bimmerpost.com",    ["F87"]),
     ("g87.bimmerpost.com",    ["G87"]),
+    ("f80.bimmerpost.com",    ["F80", "F82"]),
+    ("g80.bimmerpost.com",    ["G80", "G82"]),
     ("f90.bimmerpost.com",    ["F90"]),
     ("f10.m5post.com",        ["F10"]),
     ("m3post.com",            ["E90", "E92"]),
