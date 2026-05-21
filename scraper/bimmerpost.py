@@ -21,6 +21,7 @@ DELAY = 3
 # Classic vBulletin layout: td id="td_threadtitle_NNN"
 # (base_url, forum_id, label, listing_type)
 CLASSIC_FORUMS = [
+    # ── bimmerpost.com main (E46, E9x, F80/F82 general) ──────────────────────
     ("https://www.bimmerpost.com/forums", 178, "Exterior / Cosmetic Parts",      "part"),
     ("https://www.bimmerpost.com/forums", 184, "Interior Parts",                 "part"),
     ("https://www.bimmerpost.com/forums", 204, "Turbo Engine / Drivetrain",      "part"),
@@ -28,14 +29,46 @@ CLASSIC_FORUMS = [
     ("https://www.bimmerpost.com/forums", 111, "Wheels and Tires",               "part"),
     ("https://www.bimmerpost.com/forums", 180, "Suspension / Brakes / Chassis",  "part"),
     ("https://www.bimmerpost.com/forums", 96,  "Cars for Sale",                  "vehicle"),
+
+    # ── E46 M3 ────────────────────────────────────────────────────────────────
+    ("https://e46m3.bimmerpost.com/forums", 847, "E46 M3 For Sale / Wanted",     "part"),
+    ("https://e46m3.bimmerpost.com/forums", 852, "E46 M3 Owners Classifieds",    "part"),
+
+    # ── E90/E92 M3 (m3post.com) ───────────────────────────────────────────────
+    ("https://www.m3post.com/forums", 182, "E90/E92 M3 Private Sellers",         "part"),
+    ("https://www.m3post.com/forums", 276, "E90/E92 Exterior Parts",             "part"),
+    ("https://www.m3post.com/forums", 277, "E90/E92 Wheels and Tires",           "part"),
+    ("https://www.m3post.com/forums", 279, "E90/E92 Engine / Drivetrain",        "part"),
+    ("https://www.m3post.com/forums", 284, "E90/E92 Cars for Sale",              "vehicle"),
+
+    # ── F80/F82 M3/M4 ─────────────────────────────────────────────────────────
+    ("https://f80.bimmerpost.com/forums", 616, "F80/F82 Members Classifieds",    "part"),
+    ("https://f80.bimmerpost.com/forums", 617, "F80/F82 Exterior Parts",         "part"),
+    ("https://f80.bimmerpost.com/forums", 618, "F80/F82 Interior Parts",         "part"),
+    ("https://f80.bimmerpost.com/forums", 619, "F80/F82 Wheels / Tires",         "part"),
+    ("https://f80.bimmerpost.com/forums", 622, "F80/F82 Electronics",            "part"),
+    ("https://f80.bimmerpost.com/forums", 625, "F80/F82 Cars for Sale",          "vehicle"),
+
+    # ── G80/G82 M3/M4 ─────────────────────────────────────────────────────────
+    ("https://g80.bimmerpost.com/forums", 911, "G80/G82 Members Classifieds",    "part"),
+    ("https://g80.bimmerpost.com/forums", 912, "G80/G82 Exterior Parts",         "part"),
+    ("https://g80.bimmerpost.com/forums", 913, "G80/G82 Interior Parts",         "part"),
+    ("https://g80.bimmerpost.com/forums", 921, "G80/G82 Cars for Sale",          "vehicle"),
+
+    # ── F87 M2 ────────────────────────────────────────────────────────────────
     ("https://f87.bimmerpost.com/forums", 657, "F87 M2 Members Classifieds",     "part"),
+
+    # ── G87 M2 ────────────────────────────────────────────────────────────────
     ("https://g87.bimmerpost.com/forums", 979, "G87 M2 Members Classifieds",     "part"),
+
+    # ── F90/G90 M5 ───────────────────────────────────────────────────────────
     ("https://f90.bimmerpost.com/forums", 717, "F90/G90 M5 Members Classifieds", "part"),
+
+    # ── F10 M5 ────────────────────────────────────────────────────────────────
     ("https://f10.m5post.com/forums",     432, "F10 M5 Members Classifieds",     "part"),
 ]
 
 # Modern vBulletin layout: div id="thread-row-NNN", slug URLs
-# (base_url, forum_id, label, listing_type)
 MODERN_FORUMS = [
     ("https://x3.xbimmers.com", 719, "X3/X4 Members Classifieds", "part"),
 ]
@@ -64,7 +97,6 @@ def parse_classic_date(raw: str):
 
 
 def parse_modern_date(raw: str):
-    # Appears as "Posted on 05-04-2026" inside a sr-only span
     m = _MODERN_DATE_RE.search(raw)
     if not m:
         return None
@@ -83,7 +115,6 @@ def scrape_classic(base_url: str, forum_id: int) -> list:
         thread_id = _CLASSIC_THREAD_RE.search(td["id"]).group(1)
         row = td.parent
 
-        # Skip stickies — their status icon div carries a "sticky" class
         status_td = row.find("td", id=f"td_threadstatusicon_{thread_id}")
         if status_td:
             icon_div = status_td.find("div")
@@ -184,7 +215,7 @@ def main():
     print("\n--- Totals by subdomain ---")
     grand_saved = grand_skipped = 0
     for domain, counts in totals.items():
-        print(f"  {domain:35s}  found={counts['found']:3d}  saved={counts['saved']:3d}  dupes={counts['skipped']:3d}")
+        print(f"  {domain:40s}  found={counts['found']:3d}  saved={counts['saved']:3d}  dupes={counts['skipped']:3d}")
         grand_saved   += counts["saved"]
         grand_skipped += counts["skipped"]
     print(f"\n  Grand total — Saved: {grand_saved}  |  Skipped (duplicates): {grand_skipped}")
