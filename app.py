@@ -6,19 +6,15 @@ from pathlib import Path
 from flask import Flask, render_template_string, jsonify, request
 
 sys.path.insert(0, str(Path(__file__).parent))
-from database.db import (get_listings_by_type, get_listing_by_id,
-                          get_listings_by_source, init_email_table, save_email,
-                          init_db)
+from database.db import (get_listings_by_type, init_email_table, save_email, init_db)
 
 app = Flask(__name__)
 
-# Ensure all tables exist on every startup (critical for Railway/PostgreSQL)
 init_db()
 
 CHASSIS_FILTERS = ["E46", "E90", "E92", "F80", "G80", "F87", "F90", "X3"]
 REDDIT_SOURCES  = {"BimmerMarket", "E46", "E90", "F80", "BMWE46", "E9x"}
 
-# Part type filter pills — ordered by expected frequency
 PART_TYPE_FILTERS = [
     "Wheels", "Exhaust", "Suspension", "Coilovers", "Brakes",
     "Engine", "Seats", "Exterior", "Interior", "Electronics",
@@ -35,101 +31,45 @@ _CHASSIS_RE = {
 _PRICE_RE = re.compile(r'\$[\d,]+')
 _SOLD_RE  = re.compile(r'\bsold\b|\[s\]|price\s+drop|reduced', re.IGNORECASE)
 
-# Normalize part_type values from Claude into filter-pill buckets
 _PART_TYPE_MAP = {
-    # Wheels / tires
-    "wheels":              "Wheels",
-    "wheel":               "Wheels",
-    "wheels and tires":    "Wheels",
-    "tires":               "Wheels",
-    "tire":                "Wheels",
-    "rims":                "Wheels",
-    # Exhaust
-    "exhaust":             "Exhaust",
-    "exhaust tips":        "Exhaust",
-    "muffler":             "Exhaust",
-    "downpipe":            "Exhaust",
-    "catback":             "Exhaust",
-    "headers":             "Exhaust",
-    "catalyst":            "Exhaust",
-    "cats":                "Exhaust",
-    # Suspension
-    "coilovers":           "Coilovers",
-    "coilover":            "Coilovers",
-    "springs":             "Suspension",
-    "spring":              "Suspension",
-    "sway bar":            "Suspension",
-    "control arms":        "Suspension",
-    "control arm":         "Suspension",
-    "subframe":            "Suspension",
-    "suspension":          "Suspension",
-    "steering rack":       "Suspension",
-    "bushings":            "Suspension",
-    # Brakes
-    "brakes":              "Brakes",
-    "brake":               "Brakes",
-    "brake calipers":      "Brakes",
-    "brake calipers and pads": "Brakes",
-    "brake duct":          "Brakes",
-    "brake pads":          "Brakes",
-    "rotors":              "Brakes",
-    # Engine / drivetrain
-    "engine":              "Engine",
-    "transmission":        "Engine",
-    "turbo":               "Engine",
-    "intake":              "Engine",
-    "air intake system":   "Engine",
-    "supercharger":        "Engine",
-    "oil cooler":          "Engine",
-    "cooling":             "Engine",
-    "intercooler":         "Engine",
-    # Seats / interior
-    "seats":               "Seats",
-    "seat":                "Seats",
-    "interior":            "Interior",
-    "steering wheel":      "Interior",
-    "shift lever":         "Interior",
-    "dash":                "Interior",
-    "headliner":           "Interior",
-    "rear shade":          "Interior",
-    "rear sunshade":       "Interior",
-    "rear shades":         "Interior",
-    # Exterior
-    "bumper":              "Exterior",
-    "trunk lid":           "Exterior",
-    "hood":                "Exterior",
-    "splitter":            "Exterior",
-    "spoiler":             "Exterior",
-    "lip":                 "Exterior",
-    "diffuser":            "Exterior",
-    "rocker panels":       "Exterior",
-    "fender":              "Exterior",
-    "door":                "Exterior",
-    "mirrors":             "Exterior",
-    "headlights":          "Exterior",
-    "taillights":          "Exterior",
-    "widebody":            "Exterior",
-    # Electronics
-    "head unit":           "Electronics",
-    "ecu":                 "Electronics",
-    "electronics":         "Electronics",
-    "stereo":              "Electronics",
-    "speakers":            "Electronics",
+    "wheels": "Wheels", "wheel": "Wheels", "wheels and tires": "Wheels",
+    "tires": "Wheels", "tire": "Wheels", "rims": "Wheels",
+    "wheel lock nuts": "Wheels", "wheel lock": "Wheels",
+    "exhaust": "Exhaust", "exhaust tips": "Exhaust", "muffler": "Exhaust",
+    "downpipe": "Exhaust", "catback": "Exhaust", "headers": "Exhaust",
+    "catalyst": "Exhaust", "cats": "Exhaust",
+    "coilovers": "Coilovers", "coilover": "Coilovers",
+    "springs": "Suspension", "spring": "Suspension", "sway bar": "Suspension",
+    "control arms": "Suspension", "control arm": "Suspension",
+    "subframe": "Suspension", "suspension": "Suspension",
+    "steering rack": "Suspension", "bushings": "Suspension",
     "subframe reinforcement": "Suspension",
-    "smg parts":           "Engine",
     "front spindles/hubs/knuckles": "Suspension",
-    "wheel lock nuts":     "Wheels",
-    "wheel lock":          "Wheels",
-    "front splitter":      "Exterior",
+    "brakes": "Brakes", "brake": "Brakes", "brake calipers": "Brakes",
+    "brake calipers and pads": "Brakes", "brake duct": "Brakes",
+    "brake pads": "Brakes", "rotors": "Brakes",
+    "engine": "Engine", "transmission": "Engine", "turbo": "Engine",
+    "intake": "Engine", "air intake system": "Engine",
+    "supercharger": "Engine", "oil cooler": "Engine",
+    "cooling": "Engine", "intercooler": "Engine", "smg parts": "Engine",
+    "seats": "Seats", "seat": "Seats",
+    "interior": "Interior", "steering wheel": "Interior",
+    "shift lever": "Interior", "dash": "Interior", "headliner": "Interior",
+    "rear shade": "Interior", "rear sunshade": "Interior", "rear shades": "Interior",
+    "bumper": "Exterior", "trunk lid": "Exterior", "hood": "Exterior",
+    "splitter": "Exterior", "front splitter": "Exterior", "spoiler": "Exterior",
+    "lip": "Exterior", "diffuser": "Exterior", "rocker panels": "Exterior",
+    "fender": "Exterior", "door": "Exterior", "mirrors": "Exterior",
+    "headlights": "Exterior", "taillights": "Exterior", "widebody": "Exterior",
+    "head unit": "Electronics", "ecu": "Electronics",
+    "electronics": "Electronics", "stereo": "Electronics", "speakers": "Electronics",
 }
 
 
 def normalize_part_type(raw: str) -> str:
-    """Map a Claude-returned part_type to a filter pill bucket, or 'Other'."""
     if not raw or raw.lower() in ("unknown", ""):
         return "Other"
-    key = raw.strip().lower()
-    return _PART_TYPE_MAP.get(key, "Other")
+    return _PART_TYPE_MAP.get(raw.strip().lower(), "Other")
 
 
 def detect_chassis(title):
@@ -156,7 +96,7 @@ def badge_bg(source):
         return "#8a6a4a"
     if source == "NAM3Forum":
         return "#5a7a5a"
-    return "#4a6fa5"   # Bimmerpost
+    return "#4a6fa5"
 
 
 def enrich(listing):
@@ -169,18 +109,15 @@ def enrich(listing):
         stamp = "PRICE DROP" if "price" in word.lower() or "reduced" in word.lower() else "SOLD"
     else:
         stamp = None
-
-    # Use normalized_title from Claude parser if available, else raw title
     display_title = (listing.get("normalized_title") or "").strip() or title
-
     return {
         **listing,
-        "chassis_csv":    ",".join(chassis),
-        "chassis_tags":   chassis,
-        "price":          extract_price(title),
-        "date_fmt":       format_date(listing.get("posted_at", "")),
-        "badge_bg":       badge_bg(listing["source"]),
-        "has_image":      (
+        "chassis_csv":      ",".join(chassis),
+        "chassis_tags":     chassis,
+        "price":            extract_price(title),
+        "date_fmt":         format_date(listing.get("posted_at", "")),
+        "badge_bg":         badge_bg(listing["source"]),
+        "has_image":        (
             bool(img)
             and img not in ("self", "default")
             and img.startswith("https://")
@@ -188,8 +125,8 @@ def enrich(listing):
             and "reddit.com" not in img
             and "redditstatic.com" not in img
         ),
-        "sold_stamp":     stamp,
-        "display_title":  display_title,
+        "sold_stamp":       stamp,
+        "display_title":    display_title,
         "part_type_bucket": normalize_part_type(listing.get("part_type", "")),
     }
 
@@ -248,8 +185,8 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .card-placeholder-grid div { border: 0.5px solid rgba(255,255,255,0.06); }
 .card-placeholder-text { position: relative; font-size: 16px; font-weight: 700; font-style: italic; color: rgba(255,255,255,0.05); letter-spacing: -0.5px; }
 .card-body { padding: 13px 14px 12px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.card-title { font-size: 13px; font-weight: 500; color: #111; line-height: 1.45; flex: 1; }
 .card-part-type { font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: #aaa; }
+.card-title { font-size: 13px; font-weight: 500; color: #111; line-height: 1.45; flex: 1; }
 .card-price { font-size: 14px; font-weight: 600; color: #111; letter-spacing: -0.3px; }
 .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f2f2f2; padding-top: 9px; margin-top: 4px; }
 .source-badge { font-size: 11px; color: #fff; background: #999; padding: 2px 8px; border-radius: 4px; }
@@ -362,7 +299,9 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
   <div class="grid" id="grid">
     {% for listing in listings %}
     <a class="card{% if listing.sold_stamp %} is-sold{% endif %}"
-       href="/listing/{{ listing.id }}"
+       href="{{ listing.url }}"
+       target="_blank"
+       rel="noopener noreferrer"
        data-type="{{ listing.listing_type | e }}"
        data-chassis="{{ listing.chassis_csv | e }}"
        data-title="{{ listing.display_title | lower | e }}"
@@ -461,7 +400,6 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     return (v && v !== '') ? parseFloat(v) : null;
   }
 
-  /* Hide Part filter row when on Vehicles tab */
   function syncPartRow() {
     if (partRow) partRow.style.display = state.type === 'vehicle' ? 'none' : '';
   }
@@ -537,44 +475,33 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
   tabs.forEach(function (t) {
     t.addEventListener('click', function () { setType(t.dataset.type); });
   });
-
   navLinks.forEach(function (a) {
-    a.addEventListener('click', function (e) {
-      e.preventDefault();
-      setType(a.dataset.type);
-    });
+    a.addEventListener('click', function (e) { e.preventDefault(); setType(a.dataset.type); });
   });
-
   pills.forEach(function (p) {
     p.addEventListener('click', function () {
       pills.forEach(function (x) { x.classList.remove('active'); });
       p.classList.add('active');
       state.chassis = p.dataset.chassis || '';
-      currentPage   = 1;
-      run();
+      currentPage = 1; run();
     });
   });
-
   typePills.forEach(function (p) {
     p.addEventListener('click', function () {
       typePills.forEach(function (x) { x.classList.remove('active'); });
       p.classList.add('active');
       state.postType = p.dataset.postType || '';
-      currentPage    = 1;
-      run();
+      currentPage = 1; run();
     });
   });
-
   partPills.forEach(function (p) {
     p.addEventListener('click', function () {
       partPills.forEach(function (x) { x.classList.remove('active'); });
       p.classList.add('active');
       state.partType = p.dataset.partType || '';
-      currentPage    = 1;
-      run();
+      currentPage = 1; run();
     });
   });
-
   if (prevBtn) prevBtn.addEventListener('click', function () {
     if (currentPage > 1) { currentPage--; run(); window.scrollTo(0, 0); }
   });
@@ -582,8 +509,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
     var tp = Math.max(1, Math.ceil(lastSorted.length / PAGE_SIZE));
     if (currentPage < tp) { currentPage++; run(); window.scrollTo(0, 0); }
   });
-
-  if (search)  search.addEventListener('input', function () {
+  if (search) search.addEventListener('input', function () {
     state.term = search.value.toLowerCase().trim();
     currentPage = 1; run();
   });
@@ -596,7 +522,6 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 
   syncPartRow();
   run();
-
 }());
 
 function submitEmail() {
@@ -620,13 +545,11 @@ function submitEmail() {
   });
 }
 </script>
-
 </body>
 </html>
 """
 
 
-# ── Shared shell CSS (header + footer + typography) used by sub-pages ─────────
 _SHELL_CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#efefed;-webkit-font-smoothing:antialiased}
@@ -650,7 +573,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .site-footer-links{font-size:11px;letter-spacing:0.06em}
 .site-footer-links a{color:#bbb;text-decoration:none}
 .site-footer-links a:hover{color:#888}
-.source-badge-sm{font-size:11px;color:#fff;padding:2px 8px;border-radius:4px;font-weight:400}
 @media(max-width:599px){.header{padding:16px;flex-direction:column;align-items:center;gap:10px}.nav{justify-content:center}.email-banner,.site-footer{padding-left:16px;padding-right:16px}}
 """
 
@@ -739,112 +661,6 @@ ABOUT_TEMPLATE = """\
     header=_SHELL_HEADER.format(about_active=' class="active"'),
     footer=_SHELL_FOOTER.format(email_banner=_EMAIL_BANNER, email_js=_EMAIL_JS),
 )
-
-
-DETAIL_TEMPLATE = """\
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{ listing.title }} — PartRecon</title>
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-H4STZFJ3D0"></script>
-<script>{% raw %}window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');{% endraw %}</script>
-<style>
-""" + _SHELL_CSS + """
-.detail-wrap{max-width:760px;margin:48px auto;padding:0 56px}
-.detail-back{font-size:12px;color:#999;text-decoration:none;letter-spacing:0.04em;display:inline-block;margin-bottom:24px}
-.detail-back:hover{color:#111}
-.detail-badges{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-.detail-post-type{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:3px 10px;border-radius:4px;background:#f0f2ff;color:#2B4EFF}
-.detail-part-type{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:3px 10px;border-radius:4px;background:#f5f5f5;color:#888}
-.detail-title{font-size:22px;font-weight:700;color:#111;line-height:1.4;margin-bottom:16px;letter-spacing:-0.3px}
-.detail-price{font-size:28px;font-weight:700;color:#111;margin-bottom:20px;letter-spacing:-0.5px}
-.detail-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#999;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #ebebeb}
-.detail-post-text{font-size:14px;color:#444;line-height:1.7;white-space:pre-wrap;margin-bottom:32px}
-.view-original-btn{display:inline-block;background:#2B4EFF;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;letter-spacing:0.02em;margin-bottom:48px}
-.view-original-btn:hover{background:#1a3de0}
-.more-section h2{font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#bbb;margin-bottom:16px}
-.more-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.card{background:#fff;border:1px solid #ebebeb;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none}
-.card:hover .card-title{text-decoration:underline}
-.card-placeholder{width:100%;height:100px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
-.card-placeholder-grid{position:absolute;top:0;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(4,1fr)}
-.card-placeholder-grid div{border:.5px solid rgba(255,255,255,.06)}
-.card-placeholder-text{position:relative;font-size:13px;font-weight:700;font-style:italic;color:rgba(255,255,255,.05)}
-.card-body{padding:11px 12px 10px;flex:1;display:flex;flex-direction:column;gap:5px}
-.card-title{font-size:12px;font-weight:500;color:#111;line-height:1.4}
-.card-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f2f2f2;padding-top:7px;margin-top:auto}
-.card-date{font-size:11px;color:#bbb}
-@media(max-width:599px){.detail-wrap{padding:0 16px;margin:32px auto}.more-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-</style>
-</head>
-<body>
-""" + _SHELL_HEADER.format(about_active="") + """
-<div class="detail-wrap">
-  <a class="detail-back" href="/">&#8592; Back to listings</a>
-
-  <div class="detail-badges">
-    {% if listing.post_type and listing.post_type != 'UNKNOWN' %}
-    <span class="detail-post-type">{{ listing.post_type }}</span>
-    {% endif %}
-    {% if listing.part_type_bucket and listing.part_type_bucket != 'Other' %}
-    <span class="detail-part-type">{{ listing.part_type_bucket }}</span>
-    {% endif %}
-    <span class="source-badge-sm" style="background:{{ listing.badge_bg }}">{{ listing.source }}</span>
-    {% for tag in listing.chassis_tags %}
-    <span style="font-size:11px;background:#eef;color:#55b;padding:2px 8px;border-radius:4px;font-weight:600">{{ tag }}</span>
-    {% endfor %}
-  </div>
-
-  <h1 class="detail-title">{{ listing.display_title }}</h1>
-
-  {% if listing.price %}
-  <div class="detail-price">{{ listing.price }}</div>
-  {% endif %}
-
-  <div class="detail-meta">
-    <span>{{ listing.source }}</span>
-    {% if listing.date_fmt %}<span>{{ listing.date_fmt }}</span>{% endif %}
-    {% if listing.listing_type == 'vehicle' %}<span>Vehicle</span>{% endif %}
-    {% if listing.condition and listing.condition != 'Unknown' %}<span>{{ listing.condition }}</span>{% endif %}
-  </div>
-
-  {% if listing.post_text %}
-  <div class="detail-post-text">{{ listing.post_text }}</div>
-  {% endif %}
-
-  <a class="view-original-btn" href="{{ listing.url }}" target="_blank" rel="noopener noreferrer">
-    View Original Listing &rarr;
-  </a>
-
-  {% if more %}
-  <div class="more-section">
-    <h2>More from {{ listing.source }}</h2>
-    <div class="more-grid">
-      {% for m in more %}
-      <a class="card" href="/listing/{{ m.id }}">
-        <div class="card-placeholder">
-          <div class="card-placeholder-grid">{% for _ in range(24) %}<div></div>{% endfor %}</div>
-          <span class="card-placeholder-text">Part&middot;Recon</span>
-        </div>
-        <div class="card-body">
-          <div class="card-title">{{ m.display_title }}</div>
-          <div class="card-footer">
-            <span class="source-badge-sm" style="background:{{ m.badge_bg }}">{{ m.source }}</span>
-            <span class="card-date">{{ m.date_fmt }}</span>
-          </div>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-</div>
-""" + _SHELL_FOOTER.format(email_banner=_EMAIL_BANNER, email_js=_EMAIL_JS) + """
-</body>
-</html>
-"""
-
 
 _LEGAL_CSS = _SHELL_CSS + """
 .legal-wrap{{max-width:680px;margin:56px auto;padding:0 56px}}
@@ -944,16 +760,6 @@ def terms():
 @app.route("/privacy")
 def privacy():
     return PRIVACY_TEMPLATE
-
-
-@app.route("/listing/<int:listing_id>")
-def listing_detail(listing_id):
-    listing = get_listing_by_id(listing_id)
-    if not listing:
-        return "Listing not found", 404
-    listing = enrich(listing)
-    more    = [enrich(m) for m in get_listings_by_source(listing["source"], listing_id, 4)]
-    return render_template_string(DETAIL_TEMPLATE, listing=listing, more=more)
 
 
 @app.route("/subscribe", methods=["POST"])
