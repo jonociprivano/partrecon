@@ -76,6 +76,31 @@ def detect_chassis(title):
     return [c for c, p in _CHASSIS_RE.items() if p.search(title)]
 
 
+# URL-based chassis inference — catches listings where the title has no chassis code
+# but the source subdomain or URL path makes it unambiguous
+_URL_CHASSIS_MAP = [
+    ("e46m3.bimmerpost.com",  ["E46"]),
+    ("f80.bimmerpost.com",    ["F80"]),
+    ("g80.bimmerpost.com",    ["G80"]),
+    ("f87.bimmerpost.com",    ["F87"]),
+    ("g87.bimmerpost.com",    ["G87"]),
+    ("f90.bimmerpost.com",    ["F90"]),
+    ("f10.m5post.com",        ["F10"]),
+    ("m3post.com",            ["E90", "E92"]),
+    ("x3.xbimmers.com",       ["X3"]),
+    ("/e46",                  ["E46"]),
+    ("/e9x",                  ["E90", "E92"]),
+]
+
+
+def detect_chassis_from_url(url: str) -> list:
+    url_lower = (url or "").lower()
+    for pattern, codes in _URL_CHASSIS_MAP:
+        if pattern in url_lower:
+            return codes
+    return []
+
+
 def extract_price(title):
     m = _PRICE_RE.search(title)
     return m.group() if m else ""
@@ -100,7 +125,9 @@ def badge_bg(source):
 
 
 def enrich(listing):
-    chassis = detect_chassis(listing["title"])
+    title_chassis = detect_chassis(listing["title"])
+    url_chassis   = detect_chassis_from_url(listing.get("url", ""))
+    chassis = title_chassis + [c for c in url_chassis if c not in title_chassis]
     img = (listing.get("image_url") or "").strip()
     title = listing["title"]
     sold_m = _SOLD_RE.search(title)
