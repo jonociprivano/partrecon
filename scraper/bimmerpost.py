@@ -42,21 +42,22 @@ CLASSIC_FORUMS = [
     ("https://www.m3post.com/forums", 284, "E90/E92 Cars for Sale",              "vehicle"),
 
     # ── F80/F82 M3/M4 ─────────────────────────────────────────────────────────
-    ("https://f80.bimmerpost.com/forums", 616, "F80/F82 Members Classifieds",    "part"),
     ("https://f80.bimmerpost.com/forums", 617, "F80/F82 Exterior Parts",         "part"),
-    ("https://f80.bimmerpost.com/forums", 618, "F80/F82 Interior Parts",         "part"),
     ("https://f80.bimmerpost.com/forums", 619, "F80/F82 Wheels / Tires",         "part"),
-    ("https://f80.bimmerpost.com/forums", 622, "F80/F82 Electronics",            "part"),
+    ("https://f80.bimmerpost.com/forums", 620, "F80/F82 Suspension / Brakes",    "part"),
+    ("https://f80.bimmerpost.com/forums", 621, "F80/F82 Engine / Drivetrain",    "part"),
+    ("https://f80.bimmerpost.com/forums", 624, "F80/F82 General Parts",          "part"),
     ("https://f80.bimmerpost.com/forums", 625, "F80/F82 Cars for Sale",          "vehicle"),
+    ("https://f80.bimmerpost.com/forums", 626, "F80/F82 Interior Parts",         "part"),
 
     # ── G80/G82 M3/M4 ─────────────────────────────────────────────────────────
     # f=911 is JS-rendered parent, skipped — sub-forums work fine
-    ("https://g80.bimmerpost.com/forums", 912, "G80/G82 Exterior Parts",         "part"),
-    ("https://g80.bimmerpost.com/forums", 913, "G80/G82 Interior Parts",         "part"),
-    ("https://g80.bimmerpost.com/forums", 914, "G80/G82 Wheels and Tires",       "part"),
-    ("https://g80.bimmerpost.com/forums", 915, "G80/G82 Engine / Drivetrain",    "part"),
+    # ── G80/G82 M3/M4 ─────────────────────────────────────────────────────────
+    ("https://g80.bimmerpost.com/forums", 916, "G80/G82 Exhaust / Engine",       "part"),
+    ("https://g80.bimmerpost.com/forums", 917, "G80/G82 Suspension / Brakes",    "part"),
+    ("https://g80.bimmerpost.com/forums", 918, "G80/G82 Exterior / Interior",    "part"),
+    ("https://g80.bimmerpost.com/forums", 919, "G80/G82 Wheels / Tires",         "part"),
     ("https://g80.bimmerpost.com/forums", 921, "G80/G82 Cars for Sale",          "vehicle"),
-
     # ── F87 M2 ────────────────────────────────────────────────────────────────
     ("https://f87.bimmerpost.com/forums", 657, "F87 M2 Members Classifieds",     "part"),
 
