@@ -88,6 +88,42 @@ def fetch_page(url: str) -> BeautifulSoup:
     return BeautifulSoup(response.text, "html.parser")
 
 
+def get_session_token(base_url: str) -> str:
+    """
+    Some Bimmerpost subdomains (e.g. g80) require a session token in the URL.
+    Fetch the forum homepage and extract the s= parameter from any forum link.
+    Returns empty string if no token needed.
+    """
+    import re
+    try:
+        soup = fetch_page(base_url + "/forums/")
+        for a in soup.find_all("a", href=True):
+            m = re.search(r"[?&]s=([a-f0-9]{32})", a["href"])
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    return ""
+
+
+# Cache session tokens per base_url to avoid re-fetching each forum
+_SESSION_CACHE: dict = {}
+
+
+def build_forum_url(base_url: str, forum_id: int, page: int = 1) -> str:
+    """Build a forumdisplay URL, injecting session token if needed."""
+    if base_url not in _SESSION_CACHE:
+        _SESSION_CACHE[base_url] = get_session_token(base_url)
+    token = _SESSION_CACHE[base_url]
+    if token:
+        url = f"{base_url}/forums/forumdisplay.php?s={token}&f={forum_id}"
+    else:
+        url = f"{base_url}/forumdisplay.php?f={forum_id}"
+    if page > 1:
+        url += f"&page={page}"
+    return url
+
+
 def parse_classic_date(raw: str):
     m = _CLASSIC_DATE_RE.search(raw)
     if not m:
@@ -111,7 +147,7 @@ def parse_modern_date(raw: str):
 
 
 def scrape_classic(base_url: str, forum_id: int) -> list:
-    soup = fetch_page(f"{base_url}/forumdisplay.php?f={forum_id}")
+    soup = fetch_page(build_forum_url(base_url, forum_id))
     results = []
 
     for td in soup.find_all("td", id=_CLASSIC_THREAD_RE):
