@@ -721,32 +721,32 @@ SELL_TEMPLATE = """\
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>List a Part — PartRecon</title>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-H4STZFJ3D0"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');</script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');</script>
 <style>
-{css}
-.sell-wrap{{max-width:680px;margin:48px auto;padding:0 56px}}
-.sell-wrap h1{{font-size:26px;font-weight:700;color:#111;margin-bottom:8px;letter-spacing:-0.4px}}
-.sell-wrap .subtitle{{font-size:14px;color:#999;margin-bottom:36px;line-height:1.5}}
-.form-group{{margin-bottom:20px}}
-.form-group label{{display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#888;margin-bottom:6px;font-weight:500}}
-.form-group input,.form-group select,.form-group textarea{{width:100%;border:1px solid #ddd;border-radius:6px;padding:10px 12px;font-size:14px;font-family:inherit;color:#111;outline:none;background:#fff}}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{{border-color:#2B4EFF}}
-.form-group textarea{{min-height:120px;resize:vertical}}
-.form-row{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
-.photo-upload{{border:2px dashed #ddd;border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s}}
-.photo-upload:hover{{border-color:#2B4EFF}}
-.photo-upload-label{{font-size:13px;color:#999}}
-.photo-upload-label span{{color:#2B4EFF;cursor:pointer}}
-.photo-previews{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}}
-.photo-preview{{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;background:#f5f5f5}}
-.photo-preview img{{width:100%;height:100%;object-fit:cover}}
-.photo-preview .remove{{position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}}
-.submit-btn{{background:#2B4EFF;color:#fff;border:none;border-radius:8px;padding:14px 28px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%;margin-top:8px}}
-.submit-btn:hover{{background:#1a3de0}}
-.submit-btn:disabled{{background:#aaa;cursor:not-allowed}}
-.required{{color:#e33}}
-.form-note{{font-size:12px;color:#aaa;margin-top:4px}}
-@media(max-width:599px){{.sell-wrap{{padding:0 16px;margin:32px auto}}.form-row{{grid-template-columns:1fr}}}}
+{{ css }}
+.sell-wrap{max-width:680px;margin:48px auto;padding:0 56px}
+.sell-wrap h1{font-size:26px;font-weight:700;color:#111;margin-bottom:8px;letter-spacing:-0.4px}
+.sell-wrap .subtitle{font-size:14px;color:#999;margin-bottom:36px;line-height:1.5}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#888;margin-bottom:6px;font-weight:500}
+.form-group input,.form-group select,.form-group textarea{width:100%;border:1px solid #ddd;border-radius:6px;padding:10px 12px;font-size:14px;font-family:inherit;color:#111;outline:none;background:#fff}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#2B4EFF}
+.form-group textarea{min-height:120px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.photo-upload{border:2px dashed #ddd;border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s}
+.photo-upload:hover{border-color:#2B4EFF}
+.photo-upload-label{font-size:13px;color:#999}
+.photo-upload-label span{color:#2B4EFF;cursor:pointer}
+.photo-previews{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.photo-preview{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;background:#f5f5f5}
+.photo-preview img{width:100%;height:100%;object-fit:cover}
+.photo-preview .remove{position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.submit-btn{background:#2B4EFF;color:#fff;border:none;border-radius:8px;padding:14px 28px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%;margin-top:8px}
+.submit-btn:hover{background:#1a3de0}
+.submit-btn:disabled{background:#aaa;cursor:not-allowed}
+.required{color:#e33}
+.form-note{font-size:12px;color:#aaa;margin-top:4px}
+@media(max-width:599px){{.sell-wrap{padding:0 16px;margin:32px auto}.form-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -841,19 +841,20 @@ SELL_TEMPLATE = """\
 {footer}
 
 <script>
+{% raw %}
 var selectedFiles = [];
 var photoInput = document.getElementById('photo-input');
 var photoDrop = document.getElementById('photo-drop');
 var photoPreviews = document.getElementById('photo-previews');
 
-photoInput.addEventListener('change', function() {{ addFiles(Array.from(this.files)); }});
+photoInput.addEventListener('change', function() {{ addFiles(Array.from(this.files)); });
 
-photoDrop.addEventListener('dragover', function(e) {{ e.preventDefault(); this.style.borderColor='#2B4EFF'; }});
-photoDrop.addEventListener('dragleave', function() {{ this.style.borderColor='#ddd'; }});
+photoDrop.addEventListener('dragover', function(e) {{ e.preventDefault(); this.style.borderColor='#2B4EFF'; });
+photoDrop.addEventListener('dragleave', function() {{ this.style.borderColor='#ddd'; });
 photoDrop.addEventListener('drop', function(e) {{
   e.preventDefault(); this.style.borderColor='#ddd';
-  addFiles(Array.from(e.dataTransfer.files).filter(function(f) {{ return f.type.startsWith('image/'); }}));
-}});
+  addFiles(Array.from(e.dataTransfer.files).filter(function(f) {{ return f.type.startsWith('image/'); }));
+});
 
 function addFiles(files) {{
   files.forEach(function(file) {{
@@ -867,16 +868,16 @@ function addFiles(files) {{
       div.dataset.idx = idx;
       div.innerHTML = '<img src="' + e.target.result + '" /><button class="remove" type="button" onclick="removePhoto(' + idx + ')">&#215;</button>';
       photoPreviews.appendChild(div);
-    }};
+    };
     reader.readAsDataURL(file);
-  }});
-}}
+  });
+}
 
 function removePhoto(idx) {{
   selectedFiles[idx] = null;
   var el = photoPreviews.querySelector('[data-idx="' + idx + '"]');
   if (el) el.remove();
-}}
+}
 
 document.getElementById('sell-form').addEventListener('submit', function(e) {{
   e.preventDefault();
@@ -885,26 +886,27 @@ document.getElementById('sell-form').addEventListener('submit', function(e) {{
   btn.textContent = 'Uploading...';
 
   var formData = new FormData(this);
-  selectedFiles.filter(function(f) {{ return f !== null; }}).forEach(function(file) {{
+  selectedFiles.filter(function(f) {{ return f !== null; }).forEach(function(file) {{
     formData.append('photos', file);
-  }});
+  });
 
-  fetch('/sell', {{ method: 'POST', body: formData }})
-  .then(function(r) {{ return r.json(); }})
+  fetch('/sell', {{ method: 'POST', body: formData })
+  .then(function(r) {{ return r.json(); })
   .then(function(d) {{
-    if (d.ok) {{ window.location.href = '/sell/success'; }}
+    if (d.ok) {{ window.location.href = '/sell/success'; }
     else {{
       alert(d.error || 'Something went wrong. Please try again.');
       btn.disabled = false;
       btn.textContent = 'Submit Listing for Review';
-    }}
-  }})
+    }
+  })
   .catch(function() {{
     alert('Something went wrong. Please try again.');
     btn.disabled = false;
     btn.textContent = 'Submit Listing for Review';
-  }});
-}});
+  });
+});
+{% endraw %}
 </script>
 </body>
 </html>
@@ -917,13 +919,13 @@ SELL_SUCCESS_TEMPLATE = """\
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Listing Submitted — PartRecon</title>
 <style>
-{css}
-.success-wrap{{max-width:560px;margin:80px auto;padding:0 56px;text-align:center}}
-.success-icon{{font-size:48px;margin-bottom:24px;color:#2B4EFF}}
-.success-wrap h1{{font-size:24px;font-weight:700;color:#111;margin-bottom:12px}}
-.success-wrap p{{font-size:15px;color:#666;line-height:1.7;margin-bottom:24px}}
-.success-wrap a{{color:#2B4EFF;text-decoration:none;font-weight:500}}
-@media(max-width:599px){{.success-wrap{{padding:0 16px;margin:56px auto}}}}
+{{ css }}
+.success-wrap{max-width:560px;margin:80px auto;padding:0 56px;text-align:center}
+.success-icon{font-size:48px;margin-bottom:24px;color:#2B4EFF}
+.success-wrap h1{font-size:24px;font-weight:700;color:#111;margin-bottom:12px}
+.success-wrap p{font-size:15px;color:#666;line-height:1.7;margin-bottom:24px}
+.success-wrap a{color:#2B4EFF;text-decoration:none;font-weight:500}
+@media(max-width:599px){{.success-wrap{padding:0 16px;margin:56px auto}}
 </style>
 </head>
 <body>
@@ -959,7 +961,7 @@ button{{width:100%;background:#2B4EFF;color:#fff;border:none;border-radius:6px;p
 <body>
 <div class="login-box">
   <h1>PartRecon Admin</h1>
-  {{% if error %}}<div class="error">Incorrect password</div>{{% endif %}}
+  {{% if error %}<div class="error">Incorrect password</div>{{% endif %}
   <form method="POST">
     <input type="password" name="password" placeholder="Password" autofocus />
     <button type="submit">Sign In</button>
@@ -976,28 +978,28 @@ ADMIN_REVIEW_TEMPLATE = """\
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Review Queue — PartRecon Admin</title>
 <style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#efefed}}
-.admin-header{{background:#111;color:#fff;padding:16px 32px;display:flex;justify-content:space-between;align-items:center}}
-.admin-header h1{{font-size:16px;font-weight:600;letter-spacing:0.05em}}
-.admin-header a{{color:#aaa;font-size:12px;text-decoration:none}}
-.admin-body{{max-width:900px;margin:32px auto;padding:0 24px}}
-.queue-count{{font-size:12px;color:#999;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:20px}}
-.listing-card{{background:#fff;border-radius:10px;border:1px solid #e8e8e8;padding:24px;margin-bottom:16px}}
-.listing-title{{font-size:17px;font-weight:600;color:#111;margin-bottom:8px}}
-.listing-meta{{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#999;margin-bottom:16px}}
-.listing-meta span{{background:#f5f5f5;padding:2px 8px;border-radius:4px}}
-.listing-desc{{font-size:14px;color:#444;line-height:1.6;margin-bottom:16px;white-space:pre-wrap}}
-.listing-contact{{font-size:13px;color:#666;margin-bottom:16px}}
-.listing-photos{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}}
-.listing-photos img{{width:120px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #eee}}
-.listing-actions{{display:flex;gap:10px}}
-.btn-approve{{background:#2B4EFF;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500}}
-.btn-reject{{background:#fff;color:#e33;border:1px solid #e33;border-radius:6px;padding:9px 20px;font-size:13px;cursor:pointer;font-family:inherit}}
-.empty{{text-align:center;padding:60px;color:#999;font-size:14px}}
-.tabs{{display:flex;gap:16px;margin-bottom:24px}}
-.tab-link{{font-size:13px;color:#999;text-decoration:none;padding-bottom:6px;border-bottom:2px solid transparent}}
-.tab-link.active{{color:#111;border-bottom-color:#2B4EFF}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#efefed}
+.admin-header{background:#111;color:#fff;padding:16px 32px;display:flex;justify-content:space-between;align-items:center}
+.admin-header h1{font-size:16px;font-weight:600;letter-spacing:0.05em}
+.admin-header a{color:#aaa;font-size:12px;text-decoration:none}
+.admin-body{max-width:900px;margin:32px auto;padding:0 24px}
+.queue-count{font-size:12px;color:#999;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:20px}
+.listing-card{background:#fff;border-radius:10px;border:1px solid #e8e8e8;padding:24px;margin-bottom:16px}
+.listing-title{font-size:17px;font-weight:600;color:#111;margin-bottom:8px}
+.listing-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#999;margin-bottom:16px}
+.listing-meta span{background:#f5f5f5;padding:2px 8px;border-radius:4px}
+.listing-desc{font-size:14px;color:#444;line-height:1.6;margin-bottom:16px;white-space:pre-wrap}
+.listing-contact{font-size:13px;color:#666;margin-bottom:16px}
+.listing-photos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.listing-photos img{width:120px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #eee}
+.listing-actions{display:flex;gap:10px}
+.btn-approve{background:#2B4EFF;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500}
+.btn-reject{background:#fff;color:#e33;border:1px solid #e33;border-radius:6px;padding:9px 20px;font-size:13px;cursor:pointer;font-family:inherit}
+.empty{text-align:center;padding:60px;color:#999;font-size:14px}
+.tabs{display:flex;gap:16px;margin-bottom:24px}
+.tab-link{font-size:13px;color:#999;text-decoration:none;padding-bottom:6px;border-bottom:2px solid transparent}
+.tab-link.active{color:#111;border-bottom-color:#2B4EFF}
 </style>
 </head>
 <body>
@@ -1007,53 +1009,53 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgro
 </div>
 <div class="admin-body">
   <div class="tabs">
-    <a href="/admin/review" class="tab-link {{% if status == 'pending' %}}active{{% endif %}}">Pending ({{{{ pending_count }}}})</a>
-    <a href="/admin/review?status=approved" class="tab-link {{% if status == 'approved' %}}active{{% endif %}}">Approved</a>
-    <a href="/admin/review?status=rejected" class="tab-link {{% if status == 'rejected' %}}active{{% endif %}}">Rejected</a>
+    <a href="/admin/review" class="tab-link {% if status == 'pending' %}active{% endif %}">Pending ({{ pending_count }})</a>
+    <a href="/admin/review?status=approved" class="tab-link {% if status == 'approved' %}active{% endif %}">Approved</a>
+    <a href="/admin/review?status=rejected" class="tab-link {% if status == 'rejected' %}active{% endif %}">Rejected</a>
   </div>
 
-  {{% if listings %}}
-  <div class="queue-count">{{{{ listings|length }}}} listing{{{{ 's' if listings|length != 1 }}}}</div>
-  {{% for l in listings %}}
+  {% if listings %}
+  <div class="queue-count">{{ listings|length }} listing{{ 's' if listings|length != 1 }}</div>
+  {% for l in listings %}
   <div class="listing-card">
-    <div class="listing-title">{{{{ l.title }}}}</div>
+    <div class="listing-title">{{ l.title }}</div>
     <div class="listing-meta">
-      {{% if l.price %}}<span>${{{{ "%.0f"|format(l.price) }}}}</span>{{% endif %}}
-      {{% if l.chassis %}}<span>{{{{ l.chassis }}}}</span>{{% endif %}}
-      {{% if l.part_type %}}<span>{{{{ l.part_type }}}}</span>{{% endif %}}
-      {{% if l.condition %}}<span>{{{{ l.condition }}}}</span>{{% endif %}}
-      {{% if l.location %}}<span>{{{{ l.location }}}}</span>{{% endif %}}
-      <span>{{{{ l.created_at[:10] }}}}</span>
+      {% if l.price %}<span>${{ "%.0f"|format(l.price) }}</span>{% endif %}
+      {% if l.chassis %}<span>{{ l.chassis }}</span>{% endif %}
+      {% if l.part_type %}<span>{{ l.part_type }}</span>{% endif %}
+      {% if l.condition %}<span>{{ l.condition }}</span>{% endif %}
+      {% if l.location %}<span>{{ l.location }}</span>{% endif %}
+      <span>{{ l.created_at[:10] }}</span>
     </div>
-    {{% if l.description %}}
-    <div class="listing-desc">{{{{ l.description }}}}</div>
-    {{% endif %}}
+    {% if l.description %}
+    <div class="listing-desc">{{ l.description }}</div>
+    {% endif %}
     <div class="listing-contact">
-      Contact: {{{{ l.contact_email }}}}
-      {{% if l.external_url %}} &middot; <a href="{{{{ l.external_url }}}}" target="_blank">View original listing</a>{{% endif %}}
+      Contact: {{ l.contact_email }
+      {% if l.external_url %} &middot; <a href="{{ l.external_url }}" target="_blank">View original listing</a>{% endif %}
     </div>
-    {{% if l.photo_urls_list %}}
+    {% if l.photo_urls_list %}
     <div class="listing-photos">
-      {{% for url in l.photo_urls_list %}}
-      <img src="{{{{ url }}}}" />
-      {{% endfor %}}
+      {% for url in l.photo_urls_list %}
+      <img src="{{ url }}" />
+      {% endfor %}
     </div>
-    {{% endif %}}
-    {{% if l.status == 'pending' %}}
+    {% endif %}
+    {% if l.status == 'pending' %}
     <div class="listing-actions">
-      <form method="POST" action="/admin/approve/{{{{ l.id }}}}" style="display:inline">
+      <form method="POST" action="/admin/approve/{{ l.id }}" style="display:inline">
         <button class="btn-approve">Approve</button>
       </form>
-      <form method="POST" action="/admin/reject/{{{{ l.id }}}}" style="display:inline">
+      <form method="POST" action="/admin/reject/{{ l.id }}" style="display:inline">
         <button class="btn-reject">Reject</button>
       </form>
     </div>
-    {{% endif %}}
+    {% endif %}
   </div>
-  {{% endfor %}}
-  {{% else %}}
-  <div class="empty">No {{{{ status }}}} listings.</div>
-  {{% endif %}}
+  {% endfor %}
+  {% else %}
+  <div class="empty">No {{ status }} listings.</div>
+  {% endif %}
 </div>
 </body>
 </html>
