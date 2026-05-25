@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>List a Part — PartRecon</title>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-H4STZFJ3D0"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#efefed;-webkit-font-smoothing:antialiased}
+.header{background:#fff;border-bottom:1px solid #e8e8e8;padding:16px 56px;display:flex;justify-content:space-between;align-items:center}
+.header-left{display:flex;flex-direction:column;gap:3px}
+.logo{display:flex;align-items:baseline;gap:2px;text-decoration:none}
+.logo-part{font-size:24px;font-weight:700;font-style:italic;color:#111}
+.logo-dot{width:5px;height:5px;background:#2B4EFF;border-radius:50%;margin:0 2px 2px;flex-shrink:0;align-self:center}
+.logo-recon{font-size:24px;font-weight:300;color:#888;letter-spacing:3px;text-transform:uppercase}
+.tagline{font-size:11px;color:#bbb;letter-spacing:0.05em;text-transform:uppercase;padding-left:2px}
+.nav{display:flex;gap:28px;align-items:center}
+.nav a{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#999;text-decoration:none}
+.nav-sell{background:#2B4EFF;color:#fff !important;padding:6px 14px;border-radius:6px;font-weight:600}
+.sell-wrap{max-width:680px;margin:48px auto;padding:0 56px}
+.sell-wrap h1{font-size:26px;font-weight:700;color:#111;margin-bottom:8px;letter-spacing:-0.4px}
+.subtitle{font-size:14px;color:#999;margin-bottom:36px;line-height:1.5}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#888;margin-bottom:6px;font-weight:500}
+.form-group input,.form-group select,.form-group textarea{width:100%;border:1px solid #ddd;border-radius:6px;padding:10px 12px;font-size:14px;font-family:inherit;color:#111;outline:none;background:#fff}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#2B4EFF}
+.form-group textarea{min-height:120px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.photo-upload{border:2px dashed #ddd;border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s}
+.photo-upload:hover{border-color:#2B4EFF}
+.photo-upload-label{font-size:13px;color:#999}
+.photo-upload-label span{color:#2B4EFF;cursor:pointer}
+.photo-previews{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.photo-preview{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;background:#f5f5f5}
+.photo-preview img{width:100%;height:100%;object-fit:cover}
+.photo-preview .remove{position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.submit-btn{background:#2B4EFF;color:#fff;border:none;border-radius:8px;padding:14px 28px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;width:100%;margin-top:8px}
+.submit-btn:hover{background:#1a3de0}
+.submit-btn:disabled{background:#aaa;cursor:not-allowed}
+.required{color:#e33}
+.form-note{font-size:12px;color:#aaa;margin-top:4px}
+.site-footer{background:#fff;border-top:1px solid #e8e8e8;padding:24px 56px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#bbb;display:flex;flex-direction:column;gap:6px;margin-top:48px}
+.site-footer-disclaimer{font-size:11px;letter-spacing:0;text-transform:none;color:#bbb;line-height:1.5}
+.site-footer-links a{color:#bbb;text-decoration:none}
+@media(max-width:599px){.header{padding:16px;flex-direction:column;align-items:center;gap:10px}.sell-wrap{padding:0 16px;margin:32px auto}.form-row{grid-template-columns:1fr}.site-footer{padding:16px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <a href="/" class="logo">
+      <span class="logo-part">Part</span>
+      <div class="logo-dot"></div>
+      <span class="logo-recon">Recon</span>
+    </a>
+    <span class="tagline">Aggregating BMW parts across the web</span>
+  </div>
+  <nav class="nav">
+    <a href="/">Parts</a>
+    <a href="/about">About</a>
+    <a href="/sell" class="nav-sell">+ List a Part</a>
+  </nav>
+</div>
+
+<div class="sell-wrap">
+  <h1>List a Part</h1>
+  <p class="subtitle">Submit your listing for review. Approved listings appear on PartRecon within 24 hours and are free to post.</p>
+
+  <form id="sell-form">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Title <span class="required">*</span></label>
+        <input type="text" name="title" placeholder="e.g. E46 M3 CSL Trunk Lid" required maxlength="200" />
+      </div>
+      <div class="form-group">
+        <label>Price (USD)</label>
+        <input type="number" name="price" placeholder="e.g. 450" min="0" step="0.01" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Chassis</label>
+        <select name="chassis">
+          <option value="">Select chassis...</option>
+          <option>E46</option><option>E90</option><option>E92</option>
+          <option>F80</option><option>F82</option><option>G80</option>
+          <option>G82</option><option>F87</option><option>G87</option>
+          <option>F90</option><option>X3</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Part Type</label>
+        <select name="part_type">
+          <option value="">Select type...</option>
+          <option>Wheels</option><option>Exhaust</option><option>Suspension</option>
+          <option>Coilovers</option><option>Brakes</option><option>Engine</option>
+          <option>Seats</option><option>Exterior</option><option>Interior</option>
+          <option>Electronics</option><option>Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Condition</label>
+        <select name="condition">
+          <option value="">Select condition...</option>
+          <option>New</option><option>Like New</option>
+          <option>Used</option><option>For Parts</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Location</label>
+        <input type="text" name="location" placeholder="e.g. Los Angeles, CA or London, UK" maxlength="100" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Description</label>
+      <textarea name="description" placeholder="Describe the part, condition, any known issues, shipping details..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Photos (up to 6)</label>
+      <div class="photo-upload" id="photo-drop">
+        <input type="file" id="photo-input" accept="image/*" multiple style="display:none" />
+        <div class="photo-upload-label">
+          <span onclick="document.getElementById('photo-input').click()">Click to upload</span> or drag and drop<br>
+          JPG, PNG, WEBP up to 10MB each
+        </div>
+      </div>
+      <div class="photo-previews" id="photo-previews"></div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Your Email <span class="required">*</span></label>
+        <input type="email" name="contact_email" placeholder="your@email.com" required />
+        <div class="form-note">Shown to interested buyers</div>
+      </div>
+      <div class="form-group">
+        <label>External Listing URL</label>
+        <input type="url" name="external_url" placeholder="https://bimmerpost.com/forums/..." />
+        <div class="form-note">Link to existing forum thread (optional)</div>
+      </div>
+    </div>
+
+    <button type="submit" class="submit-btn" id="submit-btn">Submit Listing for Review</button>
+  </form>
+</div>
+
+<div class="site-footer">
+  <div>PartRecon &mdash; Aggregating BMW parts across the web</div>
+  <div class="site-footer-disclaimer">PartRecon aggregates publicly available listings from BMW forums. We do not own or verify any listing content.</div>
+  <div class="site-footer-links"><a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a></div>
+</div>
+
+<script>
+var selectedFiles = [];
+var photoInput = document.getElementById('photo-input');
+var photoDrop = document.getElementById('photo-drop');
+var photoPreviews = document.getElementById('photo-previews');
+
+photoInput.addEventListener('change', function() { addFiles(Array.from(this.files)); });
+
+photoDrop.addEventListener('dragover', function(e) { e.preventDefault(); this.style.borderColor='#2B4EFF'; });
+photoDrop.addEventListener('dragleave', function() { this.style.borderColor='#ddd'; });
+photoDrop.addEventListener('drop', function(e) {
+  e.preventDefault(); this.style.borderColor='#ddd';
+  addFiles(Array.from(e.dataTransfer.files).filter(function(f) { return f.type.startsWith('image/'); }));
+});
+
+function addFiles(files) {
+  files.forEach(function(file) {
+    if (selectedFiles.length >= 6) return;
+    var idx = selectedFiles.length;
+    selectedFiles.push(file);
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var div = document.createElement('div');
+      div.className = 'photo-preview';
+      div.dataset.idx = idx;
+      div.innerHTML = '<img src="' + e.target.result + '" /><button class="remove" type="button" onclick="removePhoto(' + idx + ')">&#215;</button>';
+      photoPreviews.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function removePhoto(idx) {
+  selectedFiles[idx] = null;
+  var el = photoPreviews.querySelector('[data-idx="' + idx + '"]');
+  if (el) el.remove();
+}
+
+document.getElementById('sell-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+
+  var formData = new FormData(this);
+  selectedFiles.filter(function(f) { return f !== null; }).forEach(function(file) {
+    formData.append('photos', file);
+  });
+
+  fetch('/sell', { method: 'POST', body: formData })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) { window.location.href = '/sell/success'; }
+    else {
+      alert(d.error || 'Something went wrong. Please try again.');
+      btn.disabled = false;
+      btn.textContent = 'Submit Listing for Review';
+    }
+  })
+  .catch(function() {
+    alert('Something went wrong. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Submit Listing for Review';
+  });
+});
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import cloudinary
 import cloudinary.uploader
-from flask import Flask, render_template_string, jsonify, request, session, redirect
+from flask import Flask, render_template, render_template_string, jsonify, request, session, redirect
 
 sys.path.insert(0, str(Path(__file__).parent))
 from database.db import (get_listings_by_type, init_email_table, save_email,
@@ -1212,12 +1212,7 @@ def privacy():
 @app.route("/sell", methods=["GET", "POST"])
 def sell():
     if request.method == "GET":
-        return render_template_string(
-            SELL_TEMPLATE,
-            header=_SHELL_HEADER.format(about_active=""),
-            footer=_SHELL_FOOTER.format(email_banner="", email_js=""),
-            css=_SHELL_CSS,
-        )
+        return render_template("sell.html")
 
     try:
         title         = (request.form.get("title") or "").strip()
@@ -1270,12 +1265,7 @@ def sell():
 
 @app.route("/sell/success")
 def sell_success():
-    return render_template_string(
-        SELL_SUCCESS_TEMPLATE,
-        header=_SHELL_HEADER.format(about_active=""),
-        footer=_SHELL_FOOTER.format(email_banner="", email_js=""),
-        css=_SHELL_CSS,
-    )
+    return render_template("sell_success.html")
 
 
 @app.route("/admin", methods=["GET", "POST"])
@@ -1288,7 +1278,7 @@ def admin_login():
             session["admin"] = True
             return redirect("/admin/review")
         error = True
-    return render_template_string(ADMIN_LOGIN_TEMPLATE, error=error)
+    return render_template("admin_login.html", error=error)
 
 
 @app.route("/admin/logout")
@@ -1303,8 +1293,7 @@ def admin_review():
     status = request.args.get("status", "pending")
     listings = get_submitted_listings(status=status)
     pending_count = get_pending_count()
-    return render_template_string(
-        ADMIN_REVIEW_TEMPLATE,
+    return render_template("admin_review.html",
         listings=listings,
         status=status,
         pending_count=pending_count,

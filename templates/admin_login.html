@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — PartRecon</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#efefed;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{background:#fff;border-radius:12px;padding:40px;width:320px;border:1px solid #e8e8e8}
+h1{font-size:18px;font-weight:600;margin-bottom:24px;color:#111}
+input{width:100%;border:1px solid #ddd;border-radius:6px;padding:10px 12px;font-size:14px;font-family:inherit;outline:none;margin-bottom:12px;box-sizing:border-box}
+input:focus{border-color:#2B4EFF}
+button{width:100%;background:#2B4EFF;color:#fff;border:none;border-radius:6px;padding:11px;font-size:14px;cursor:pointer;font-family:inherit}
+.error{color:#e33;font-size:13px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="login-box">
+  <h1>PartRecon Admin</h1>
+  {% if error %}<div class="error">Incorrect password</div>{% endif %}
+  <form method="POST">
+    <input type="password" name="password" placeholder="Password" autofocus />
+    <button type="submit">Sign In</button>
+  </form>
+</div>
+</body>
+</html>

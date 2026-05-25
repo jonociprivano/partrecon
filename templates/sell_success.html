@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Listing Submitted — PartRecon</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#efefed}
+.header{background:#fff;border-bottom:1px solid #e8e8e8;padding:16px 56px;display:flex;justify-content:space-between;align-items:center}
+.header-left{display:flex;flex-direction:column;gap:3px}
+.logo{display:flex;align-items:baseline;gap:2px;text-decoration:none}
+.logo-part{font-size:24px;font-weight:700;font-style:italic;color:#111}
+.logo-dot{width:5px;height:5px;background:#2B4EFF;border-radius:50%;margin:0 2px 2px;flex-shrink:0;align-self:center}
+.logo-recon{font-size:24px;font-weight:300;color:#888;letter-spacing:3px;text-transform:uppercase}
+.tagline{font-size:11px;color:#bbb;letter-spacing:0.05em;text-transform:uppercase;padding-left:2px}
+.nav{display:flex;gap:28px}
+.nav a{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#999;text-decoration:none}
+.success-wrap{max-width:560px;margin:80px auto;padding:0 56px;text-align:center}
+.success-icon{font-size:48px;margin-bottom:24px;color:#2B4EFF}
+.success-wrap h1{font-size:24px;font-weight:700;color:#111;margin-bottom:12px}
+.success-wrap p{font-size:15px;color:#666;line-height:1.7;margin-bottom:24px}
+.success-wrap a{color:#2B4EFF;text-decoration:none;font-weight:500}
+@media(max-width:599px){.header{padding:16px;flex-direction:column;align-items:center;gap:10px}.success-wrap{padding:0 16px;margin:56px auto}}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <a href="/" class="logo">
+      <span class="logo-part">Part</span>
+      <div class="logo-dot"></div>
+      <span class="logo-recon">Recon</span>
+    </a>
+    <span class="tagline">Aggregating BMW parts across the web</span>
+  </div>
+  <nav class="nav">
+    <a href="/">Parts</a>
+    <a href="/about">About</a>
+  </nav>
+</div>
+<div class="success-wrap">
+  <div class="success-icon">&#10003;</div>
+  <h1>Listing submitted</h1>
+  <p>Your listing is under review and will appear on PartRecon within 24 hours once approved.</p>
+  <a href="/">Back to listings &rarr;</a>
+</div>
+</body>
+</html>

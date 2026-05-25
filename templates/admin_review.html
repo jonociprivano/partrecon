@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Review Queue — PartRecon Admin</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#efefed}
+.admin-header{background:#111;color:#fff;padding:16px 32px;display:flex;justify-content:space-between;align-items:center}
+.admin-header h1{font-size:16px;font-weight:600;letter-spacing:0.05em}
+.admin-header a{color:#aaa;font-size:12px;text-decoration:none}
+.admin-body{max-width:900px;margin:32px auto;padding:0 24px}
+.queue-count{font-size:12px;color:#999;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:20px}
+.listing-card{background:#fff;border-radius:10px;border:1px solid #e8e8e8;padding:24px;margin-bottom:16px}
+.listing-title{font-size:17px;font-weight:600;color:#111;margin-bottom:8px}
+.listing-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#999;margin-bottom:16px}
+.listing-meta span{background:#f5f5f5;padding:2px 8px;border-radius:4px}
+.listing-desc{font-size:14px;color:#444;line-height:1.6;margin-bottom:16px;white-space:pre-wrap}
+.listing-contact{font-size:13px;color:#666;margin-bottom:16px}
+.listing-photos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.listing-photos img{width:120px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #eee}
+.listing-actions{display:flex;gap:10px}
+.btn-approve{background:#2B4EFF;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500}
+.btn-reject{background:#fff;color:#e33;border:1px solid #e33;border-radius:6px;padding:9px 20px;font-size:13px;cursor:pointer;font-family:inherit}
+.empty{text-align:center;padding:60px;color:#999;font-size:14px}
+.tabs{display:flex;gap:16px;margin-bottom:24px}
+.tab-link{font-size:13px;color:#999;text-decoration:none;padding-bottom:6px;border-bottom:2px solid transparent}
+.tab-link.active{color:#111;border-bottom-color:#2B4EFF}
+</style>
+</head>
+<body>
+<div class="admin-header">
+  <h1>PartRecon Admin</h1>
+  <a href="/admin/logout">Sign out</a>
+</div>
+<div class="admin-body">
+  <div class="tabs">
+    <a href="/admin/review" class="tab-link {% if status == 'pending' %}active{% endif %}">Pending ({{ pending_count }})</a>
+    <a href="/admin/review?status=approved" class="tab-link {% if status == 'approved' %}active{% endif %}">Approved</a>
+    <a href="/admin/review?status=rejected" class="tab-link {% if status == 'rejected' %}active{% endif %}">Rejected</a>
+  </div>
+
+  {% if listings %}
+  <div class="queue-count">{{ listings|length }} listing{{ 's' if listings|length != 1 }}</div>
+  {% for l in listings %}
+  <div class="listing-card">
+    <div class="listing-title">{{ l.title }}</div>
+    <div class="listing-meta">
+      {% if l.price %}<span>${{ "%.0f"|format(l.price) }}</span>{% endif %}
+      {% if l.chassis %}<span>{{ l.chassis }}</span>{% endif %}
+      {% if l.part_type %}<span>{{ l.part_type }}</span>{% endif %}
+      {% if l.condition %}<span>{{ l.condition }}</span>{% endif %}
+      {% if l.location %}<span>{{ l.location }}</span>{% endif %}
+      <span>{{ l.created_at[:10] }}</span>
+    </div>
+    {% if l.description %}
+    <div class="listing-desc">{{ l.description }}</div>
+    {% endif %}
+    <div class="listing-contact">
+      Contact: {{ l.contact_email }}
+      {% if l.external_url %} &middot; <a href="{{ l.external_url }}" target="_blank">View original listing</a>{% endif %}
+    </div>
+    {% if l.photo_urls_list %}
+    <div class="listing-photos">
+      {% for url in l.photo_urls_list %}
+      <img src="{{ url }}" />
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if l.status == 'pending' %}
+    <div class="listing-actions">
+      <form method="POST" action="/admin/approve/{{ l.id }}" style="display:inline">
+        <button class="btn-approve">Approve</button>
+      </form>
+      <form method="POST" action="/admin/reject/{{ l.id }}" style="display:inline">
+        <button class="btn-reject">Reject</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty">No {{ status }} listings.</div>
+  {% endif %}
+</div>
+</body>
+</html>
