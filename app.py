@@ -154,12 +154,13 @@ def enrich(listing):
     else:
         stamp = None
     display_title = (listing.get("normalized_title") or "").strip() or title
+    date_str = listing.get("posted_at") or listing.get("created_at") or ""
     return {
         **listing,
         "chassis_csv":      ",".join(chassis),
         "chassis_tags":     chassis,
         "price":            extract_price(title),
-        "date_fmt":         format_date(listing.get("posted_at", "")),
+        "date_fmt":         format_date(date_str),
         "badge_bg":         badge_bg(listing["source"]),
         "has_image":        (
             bool(img)

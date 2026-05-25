@@ -18,10 +18,7 @@ USER_AGENT = (
 )
 DELAY = 3
 
-# Classic vBulletin layout: td id="td_threadtitle_NNN"
-# (base_url, forum_id, label, listing_type)
 CLASSIC_FORUMS = [
-    # ── bimmerpost.com main (E46, E9x, F80/F82 general) ──────────────────────
     ("https://www.bimmerpost.com/forums", 178, "Exterior / Cosmetic Parts",      "part"),
     ("https://www.bimmerpost.com/forums", 184, "Interior Parts",                 "part"),
     ("https://www.bimmerpost.com/forums", 204, "Turbo Engine / Drivetrain",      "part"),
@@ -29,19 +26,13 @@ CLASSIC_FORUMS = [
     ("https://www.bimmerpost.com/forums", 111, "Wheels and Tires",               "part"),
     ("https://www.bimmerpost.com/forums", 180, "Suspension / Brakes / Chassis",  "part"),
     ("https://www.bimmerpost.com/forums", 96,  "Cars for Sale",                  "vehicle"),
-
-    # ── E46 M3 ────────────────────────────────────────────────────────────────
     ("https://e46m3.bimmerpost.com/forums", 847, "E46 M3 For Sale / Wanted",     "part"),
     ("https://e46m3.bimmerpost.com/forums", 852, "E46 M3 Owners Classifieds",    "part"),
-
-    # ── E90/E92 M3 (m3post.com) ───────────────────────────────────────────────
     ("https://www.m3post.com/forums", 182, "E90/E92 M3 Private Sellers",         "part"),
     ("https://www.m3post.com/forums", 276, "E90/E92 Exterior Parts",             "part"),
     ("https://www.m3post.com/forums", 277, "E90/E92 Wheels and Tires",           "part"),
     ("https://www.m3post.com/forums", 279, "E90/E92 Engine / Drivetrain",        "part"),
     ("https://www.m3post.com/forums", 284, "E90/E92 Cars for Sale",              "vehicle"),
-
-    # ── F80/F82 M3/M4 ─────────────────────────────────────────────────────────
     ("https://f80.bimmerpost.com/forums", 617, "F80/F82 Exterior Parts",         "part"),
     ("https://f80.bimmerpost.com/forums", 619, "F80/F82 Wheels / Tires",         "part"),
     ("https://f80.bimmerpost.com/forums", 620, "F80/F82 Suspension / Brakes",    "part"),
@@ -49,37 +40,32 @@ CLASSIC_FORUMS = [
     ("https://f80.bimmerpost.com/forums", 624, "F80/F82 General Parts",          "part"),
     ("https://f80.bimmerpost.com/forums", 625, "F80/F82 Cars for Sale",          "vehicle"),
     ("https://f80.bimmerpost.com/forums", 626, "F80/F82 Interior Parts",         "part"),
-
-    # ── G80/G82 M3/M4 ─────────────────────────────────────────────────────────
-    # f=911 is JS-rendered parent, skipped — sub-forums work fine
-    # ── G80/G82 M3/M4 ─────────────────────────────────────────────────────────
     ("https://g80.bimmerpost.com/forums", 916, "G80/G82 Exhaust / Engine",       "part"),
     ("https://g80.bimmerpost.com/forums", 917, "G80/G82 Suspension / Brakes",    "part"),
     ("https://g80.bimmerpost.com/forums", 918, "G80/G82 Exterior / Interior",    "part"),
     ("https://g80.bimmerpost.com/forums", 919, "G80/G82 Wheels / Tires",         "part"),
     ("https://g80.bimmerpost.com/forums", 921, "G80/G82 Cars for Sale",          "vehicle"),
-    # ── F87 M2 ────────────────────────────────────────────────────────────────
     ("https://f87.bimmerpost.com/forums", 657, "F87 M2 Members Classifieds",     "part"),
-
-    # ── G87 M2 ────────────────────────────────────────────────────────────────
     ("https://g87.bimmerpost.com/forums", 979, "G87 M2 Members Classifieds",     "part"),
-
-    # ── F90/G90 M5 ───────────────────────────────────────────────────────────
     ("https://f90.bimmerpost.com/forums", 717, "F90/G90 M5 Members Classifieds", "part"),
-
-    # ── F10 M5 ────────────────────────────────────────────────────────────────
     ("https://f10.m5post.com/forums",     432, "F10 M5 Members Classifieds",     "part"),
 ]
 
-# Modern vBulletin layout: div id="thread-row-NNN", slug URLs
 MODERN_FORUMS = [
     ("https://x3.xbimmers.com", 719, "X3/X4 Members Classifieds", "part"),
 ]
 
 _CLASSIC_THREAD_RE = re.compile(r"td_threadtitle_(\d+)")
-_CLASSIC_DATE_RE   = re.compile(r"\d{2}-\d{2}-\d{4}\s+\d{1,2}:\d{2}\s+[AP]M")
 _MODERN_THREAD_RE  = re.compile(r"^thread-row-(\d+)$")
-_MODERN_DATE_RE    = re.compile(r"\d{2}-\d{2}-\d{4}")
+
+# Multiple date formats seen across Bimmerpost subdomains
+_DATE_PATTERNS = [
+    (re.compile(r"\d{2}-\d{2}-\d{4}\s+\d{1,2}:\d{2}\s+[AP]M"), "%m-%d-%Y %I:%M %p"),
+    (re.compile(r"\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}"),            "%m-%d-%Y %H:%M"),
+    (re.compile(r"\d{2}-\d{2}-\d{4}"),                           "%m-%d-%Y"),
+    (re.compile(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}"),            "%Y-%m-%d %H:%M"),
+    (re.compile(r"\d{4}-\d{2}-\d{2}"),                           "%Y-%m-%d"),
+]
 
 
 def fetch_page(url: str) -> BeautifulSoup:
@@ -89,12 +75,6 @@ def fetch_page(url: str) -> BeautifulSoup:
 
 
 def get_session_token(base_url: str) -> str:
-    """
-    Some Bimmerpost subdomains (e.g. g80) require a session token in the URL.
-    Fetch the forum homepage and extract the s= parameter from any forum link.
-    Returns empty string if no token needed.
-    """
-    import re
     try:
         soup = fetch_page(base_url + "/forums/")
         for a in soup.find_all("a", href=True):
@@ -106,12 +86,10 @@ def get_session_token(base_url: str) -> str:
     return ""
 
 
-# Cache session tokens per base_url to avoid re-fetching each forum
 _SESSION_CACHE: dict = {}
 
 
 def build_forum_url(base_url: str, forum_id: int, page: int = 1) -> str:
-    """Build a forumdisplay URL, injecting session token if needed."""
     if base_url not in _SESSION_CACHE:
         _SESSION_CACHE[base_url] = get_session_token(base_url)
     token = _SESSION_CACHE[base_url]
@@ -124,26 +102,23 @@ def build_forum_url(base_url: str, forum_id: int, page: int = 1) -> str:
     return url
 
 
-def parse_classic_date(raw: str):
-    m = _CLASSIC_DATE_RE.search(raw)
-    if not m:
+def parse_date(raw: str):
+    """Try multiple date formats, return ISO string or None."""
+    if not raw:
         return None
-    try:
-        dt = datetime.strptime(m.group(), "%m-%d-%Y %I:%M %p")
-        return dt.replace(tzinfo=timezone.utc).isoformat()
-    except ValueError:
-        return None
+    for pattern, fmt in _DATE_PATTERNS:
+        m = pattern.search(raw)
+        if m:
+            try:
+                dt = datetime.strptime(m.group().strip(), fmt)
+                return dt.replace(tzinfo=timezone.utc).isoformat()
+            except ValueError:
+                continue
+    return None
 
 
-def parse_modern_date(raw: str):
-    m = _MODERN_DATE_RE.search(raw)
-    if not m:
-        return None
-    try:
-        dt = datetime.strptime(m.group(), "%m-%d-%Y")
-        return dt.replace(tzinfo=timezone.utc).isoformat()
-    except ValueError:
-        return None
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def scrape_classic(base_url: str, forum_id: int) -> list:
@@ -154,6 +129,7 @@ def scrape_classic(base_url: str, forum_id: int) -> list:
         thread_id = _CLASSIC_THREAD_RE.search(td["id"]).group(1)
         row = td.parent
 
+        # Skip sticky threads
         status_td = row.find("td", id=f"td_threadstatusicon_{thread_id}")
         if status_td:
             icon_div = status_td.find("div")
@@ -167,8 +143,17 @@ def scrape_classic(base_url: str, forum_id: int) -> list:
         title = title_tag.get_text(strip=True)
         thread_url = f"{base_url}/showthread.php?t={thread_id}"
 
-        date_td = row.find("td", class_="alt2", title=lambda t: t and t.startswith("Replies:"))
-        posted_at = parse_classic_date(date_td.get_text(" ", strip=True)) if date_td else None
+        # Try all td elements in the row for a date
+        posted_at = None
+        for cell in row.find_all("td"):
+            text = cell.get_text(" ", strip=True)
+            posted_at = parse_date(text)
+            if posted_at:
+                break
+
+        # Fall back to now if no date found
+        if not posted_at:
+            posted_at = now_iso()
 
         results.append({"title": title, "url": thread_url, "posted_at": posted_at})
 
@@ -194,9 +179,11 @@ def scrape_modern(base_url: str, forum_id: int) -> list:
         posted_at = None
         author_div = div.find("div", class_="thread_author_info")
         if author_div:
-            sr_span = author_div.find("span", class_="sr-only")
-            if sr_span:
-                posted_at = parse_modern_date(sr_span.get_text(strip=True))
+            text = author_div.get_text(" ", strip=True)
+            posted_at = parse_date(text)
+
+        if not posted_at:
+            posted_at = now_iso()
 
         results.append({"title": title, "url": thread_url, "posted_at": posted_at})
 
