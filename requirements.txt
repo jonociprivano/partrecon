@@ -5,3 +5,4 @@ beautifulsoup4
 pg8000
 python-dotenv
 anthropic
+cloudinary

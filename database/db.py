@@ -1,27 +1,14 @@
 """
 database/db.py — works with SQLite locally and PostgreSQL on Railway.
-
-When DATABASE_URL env var is set, PostgreSQL is used (Railway).
-Otherwise falls back to local SQLite at data/listings.db.
-
-Key differences handled automatically:
-  - Placeholders:  SQLite uses ?   /  PostgreSQL uses %s
-  - Auto-increment: AUTOINCREMENT  /  SERIAL
-  - IntegrityError: sqlite3        /  pg8000 (both caught by string match)
-
-Phase 2 additions:
-  - part_type        TEXT   — normalized part name from Claude parser
-  - condition        TEXT   — "New" / "Used" / "Unknown"
-  - normalized_title TEXT   — clean readable title from Claude parser
-  - ai_parsed        INTEGER DEFAULT 0  — 1 once Claude has processed this row
 """
+import json
 import os
 import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ── Classification utilities (shared by scrapers) ────────────────────────────
+# ── Classification utilities ─────────────────────────────────────────────────
 _WTB_RE     = re.compile(r'\b(wtb|want\s+to\s+buy|looking\s+for)\b', re.IGNORECASE)
 _ISO_RE     = re.compile(r'\biso\b', re.IGNORECASE)
 _PARTOUT_RE = re.compile(r'\bpart(?:ing)?\s*out\b', re.IGNORECASE)
@@ -48,7 +35,7 @@ def extract_price_float(title: str):
 
 
 # ── DB config ────────────────────────────────────────────────────────────────
-DB_PATH      = Path(__file__).parent.parent / "data" / "listings.db"
+DB_PATH       = Path(__file__).parent.parent / "data" / "listings.db"
 _DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
@@ -57,7 +44,6 @@ def _is_pg() -> bool:
 
 
 def _q(sql: str) -> str:
-    """Convert SQLite ? placeholders to PostgreSQL %s."""
     if _is_pg():
         return sql.replace("?", "%s")
     return sql
@@ -70,7 +56,6 @@ def get_connection():
         import pg8000
 
         parsed = urlparse(_DATABASE_URL)
-
         ssl_ctx = _ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = _ssl.CERT_NONE
@@ -89,7 +74,6 @@ def get_connection():
 
 
 def _row_to_dict(row, cur):
-    """Convert a db row to a plain dict regardless of driver."""
     if row is None:
         return None
     if isinstance(row, (list, tuple)):
@@ -116,7 +100,6 @@ def _is_unique_error(e: Exception) -> bool:
 
 # ── Schema ───────────────────────────────────────────────────────────────────
 def init_db():
-    """Create tables and run safe migrations. Safe to call on every startup."""
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -152,14 +135,32 @@ def init_db():
                 ("normalized_title", "TEXT"),
                 ("ai_parsed",        "INTEGER DEFAULT 0"),
             ]:
-                cur.execute(
-                    f"ALTER TABLE listings ADD COLUMN IF NOT EXISTS {col} {defn}"
-                )
+                cur.execute(f"ALTER TABLE listings ADD COLUMN IF NOT EXISTS {col} {defn}")
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS email_signups (
                     id         SERIAL PRIMARY KEY,
                     email      TEXT NOT NULL UNIQUE,
                     created_at TEXT NOT NULL
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS submitted_listings (
+                    id            SERIAL PRIMARY KEY,
+                    title         TEXT NOT NULL,
+                    price         REAL,
+                    chassis       TEXT,
+                    part_type     TEXT,
+                    condition     TEXT,
+                    location      TEXT,
+                    description   TEXT,
+                    contact_email TEXT,
+                    external_url  TEXT,
+                    photo_urls    TEXT,
+                    status        TEXT NOT NULL DEFAULT 'pending',
+                    created_at    TEXT NOT NULL,
+                    reviewed_at   TEXT
                 )
             """)
 
@@ -197,7 +198,8 @@ def init_db():
                 try:
                     cur.execute(sql)
                 except sqlite3.OperationalError:
-                    pass  # column already exists
+                    pass
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS email_signups (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -206,12 +208,31 @@ def init_db():
                 )
             """)
 
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS submitted_listings (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title         TEXT NOT NULL,
+                    price         REAL,
+                    chassis       TEXT,
+                    part_type     TEXT,
+                    condition     TEXT,
+                    location      TEXT,
+                    description   TEXT,
+                    contact_email TEXT,
+                    external_url  TEXT,
+                    photo_urls    TEXT,
+                    status        TEXT NOT NULL DEFAULT 'pending',
+                    created_at    TEXT NOT NULL,
+                    reviewed_at   TEXT
+                )
+            """)
+
         conn.commit()
     finally:
         conn.close()
 
 
-# ── Queries ──────────────────────────────────────────────────────────────────
+# ── Scraped listing queries ───────────────────────────────────────────────────
 def get_listings_by_type(listing_type: str) -> list:
     conn = get_connection()
     try:
@@ -251,10 +272,6 @@ def get_listings_by_source(source: str, exclude_id: int, limit: int = 4) -> list
 
 def insert_listing(source, title, url, image_url, post_text, posted_at,
                    listing_type="part", post_type=None, price=None) -> bool:
-    """
-    Insert a new listing. Returns True if inserted, False if duplicate.
-    Claude parsing happens after insert via parse_and_update_listing().
-    """
     if post_type is None:
         post_type = detect_post_type(title)
     if price is None:
@@ -288,7 +305,6 @@ def insert_listing(source, title, url, image_url, post_text, posted_at,
 
 def mark_listing_parsed(listing_id: int, part_type: str,
                         condition: str, normalized_title: str) -> None:
-    """Write Claude parser results back to a listing row."""
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -309,7 +325,6 @@ def mark_listing_parsed(listing_id: int, part_type: str,
 
 
 def get_unparsed_listings(limit: int = 50) -> list:
-    """Return listings that haven't been through the Claude parser yet."""
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -324,7 +339,6 @@ def get_unparsed_listings(limit: int = 50) -> list:
 
 # ── Email signups ─────────────────────────────────────────────────────────────
 def init_email_table():
-    """Kept for backward compat — init_db() now handles this table."""
     init_db()
 
 
@@ -343,5 +357,97 @@ def save_email(email: str) -> bool:
         if _is_unique_error(e):
             return False
         raise
+    finally:
+        conn.close()
+
+
+# ── Submitted listings ────────────────────────────────────────────────────────
+def insert_submitted_listing(title, price, chassis, part_type, condition,
+                              location, description, contact_email,
+                              external_url, photo_urls) -> int:
+    photos_json = json.dumps(photo_urls) if isinstance(photo_urls, list) else photo_urls
+    created_at = datetime.now(timezone.utc).isoformat()
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            _q("""
+            INSERT INTO submitted_listings
+                (title, price, chassis, part_type, condition, location,
+                 description, contact_email, external_url, photo_urls, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """),
+            (title, price, chassis, part_type, condition, location,
+             description, contact_email, external_url, photos_json, created_at)
+        )
+        conn.commit()
+        if _is_pg():
+            cur.execute("SELECT lastval()")
+        else:
+            cur.execute("SELECT last_insert_rowid()")
+        row = cur.fetchone()
+        return row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]
+    finally:
+        conn.close()
+
+
+def get_submitted_listings(status='pending') -> list:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            _q("SELECT * FROM submitted_listings WHERE status = ? ORDER BY created_at DESC"),
+            (status,)
+        )
+        rows = _fetchall(cur)
+        for r in rows:
+            try:
+                r['photo_urls_list'] = json.loads(r.get('photo_urls') or '[]')
+            except Exception:
+                r['photo_urls_list'] = []
+        return rows
+    finally:
+        conn.close()
+
+
+def get_pending_count() -> int:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM submitted_listings WHERE status = 'pending'")
+        row = cur.fetchone()
+        return (row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]) or 0
+    finally:
+        conn.close()
+
+
+def update_submitted_listing_status(listing_id: int, status: str):
+    reviewed_at = datetime.now(timezone.utc).isoformat()
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            _q("UPDATE submitted_listings SET status = ?, reviewed_at = ? WHERE id = ?"),
+            (status, reviewed_at, listing_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_approved_submitted_listings() -> list:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM submitted_listings WHERE status = 'approved' ORDER BY created_at DESC"
+        )
+        rows = _fetchall(cur)
+        for r in rows:
+            try:
+                r['photo_urls_list'] = json.loads(r.get('photo_urls') or '[]')
+            except Exception:
+                r['photo_urls_list'] = []
+        return rows
     finally:
         conn.close()
