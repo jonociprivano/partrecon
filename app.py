@@ -76,8 +76,6 @@ def detect_chassis(title):
     return [c for c, p in _CHASSIS_RE.items() if p.search(title)]
 
 
-# URL-based chassis inference — catches listings where the title has no chassis code
-# but the source subdomain or URL path makes it unambiguous
 _URL_CHASSIS_MAP = [
     ("e46m3.bimmerpost.com",  ["E46"]),
     ("f87.bimmerpost.com",    ["F87"]),
@@ -164,17 +162,19 @@ TEMPLATE = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PartRecon</title>
+<title>PartRecon — BMW Parts Aggregator</title>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-H4STZFJ3D0"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-H4STZFJ3D0');</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-.header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 20px 56px; display: flex; justify-content: space-between; align-items: center; }
-.logo { display: flex; align-items: baseline; gap: 2px; }
+.header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 16px 56px; display: flex; justify-content: space-between; align-items: center; }
+.header-left { display: flex; flex-direction: column; gap: 3px; }
+.logo { display: flex; align-items: baseline; gap: 2px; text-decoration: none; }
 .logo-part { font-size: 24px; font-weight: 700; font-style: italic; color: #111; }
 .logo-dot { width: 5px; height: 5px; background: #2B4EFF; border-radius: 50%; margin: 0 2px 2px; flex-shrink: 0; align-self: center; }
 .logo-recon { font-size: 24px; font-weight: 300; color: #888; letter-spacing: 3px; text-transform: uppercase; }
+.tagline { font-size: 11px; color: #bbb; letter-spacing: 0.05em; text-transform: uppercase; padding-left: 2px; }
 .nav { display: flex; gap: 28px; }
 .nav a { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #999; text-decoration: none; }
 .nav a.active { color: #2B4EFF; }
@@ -244,6 +244,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 @media (max-width: 1023px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 599px) {
   .header { padding: 16px; flex-direction: column; align-items: center; gap: 10px; }
+  .header-left { align-items: center; }
   .nav { justify-content: center; }
   .search-bar  { padding: 12px 16px 14px; }
   .filters     { padding: 10px 16px; }
@@ -263,10 +264,13 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 <body>
 
 <div class="header">
-  <div class="logo">
-    <span class="logo-part">Part</span>
-    <div class="logo-dot"></div>
-    <span class="logo-recon">Recon</span>
+  <div class="header-left">
+    <a href="/" class="logo">
+      <span class="logo-part">Part</span>
+      <div class="logo-dot"></div>
+      <span class="logo-recon">Recon</span>
+    </a>
+    <span class="tagline">Aggregating BMW parts across the web</span>
   </div>
   <nav class="nav">
     <a href="#" class="active" data-type="part">Parts</a>
@@ -580,11 +584,13 @@ function submitEmail() {
 _SHELL_CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#efefed;-webkit-font-smoothing:antialiased}
-.header{background:#fff;border-bottom:1px solid #e8e8e8;padding:20px 56px;display:flex;justify-content:space-between;align-items:center}
-.logo{display:flex;align-items:baseline;gap:2px}
+.header{background:#fff;border-bottom:1px solid #e8e8e8;padding:16px 56px;display:flex;justify-content:space-between;align-items:center}
+.header-left{display:flex;flex-direction:column;gap:3px}
+.logo{display:flex;align-items:baseline;gap:2px;text-decoration:none}
 .logo-part{font-size:24px;font-weight:700;font-style:italic;color:#111}
 .logo-dot{width:5px;height:5px;background:#2B4EFF;border-radius:50%;margin:0 2px 2px;flex-shrink:0;align-self:center}
 .logo-recon{font-size:24px;font-weight:300;color:#888;letter-spacing:3px;text-transform:uppercase}
+.tagline{font-size:11px;color:#bbb;letter-spacing:0.05em;text-transform:uppercase;padding-left:2px}
 .nav{display:flex;gap:28px}
 .nav a{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#999;text-decoration:none}
 .nav a.active{color:#2B4EFF}
@@ -600,7 +606,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .site-footer-links{font-size:11px;letter-spacing:0.06em}
 .site-footer-links a{color:#bbb;text-decoration:none}
 .site-footer-links a:hover{color:#888}
-@media(max-width:599px){.header{padding:16px;flex-direction:column;align-items:center;gap:10px}.nav{justify-content:center}.email-banner,.site-footer{padding-left:16px;padding-right:16px}}
+@media(max-width:599px){.header{padding:16px;flex-direction:column;align-items:center;gap:10px}.header-left{align-items:center}.nav{justify-content:center}.email-banner,.site-footer{padding-left:16px;padding-right:16px}}
 """
 
 _EMAIL_BANNER = """
@@ -631,10 +637,13 @@ function submitEmail() {
 
 _SHELL_HEADER = """
 <div class="header">
-  <div class="logo">
-    <span class="logo-part">Part</span>
-    <div class="logo-dot"></div>
-    <span class="logo-recon">Recon</span>
+  <div class="header-left">
+    <a href="/" class="logo">
+      <span class="logo-part">Part</span>
+      <div class="logo-dot"></div>
+      <span class="logo-recon">Recon</span>
+    </a>
+    <span class="tagline">Aggregating BMW parts across the web</span>
   </div>
   <nav class="nav">
     <a href="/">Parts</a>
