@@ -9,7 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from database.db import init_db, insert_listing, detect_post_type, extract_price_float
+from database.db import init_db, insert_listing, detect_post_type, extract_price_float, get_connection, _q
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -17,6 +17,7 @@ USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 DELAY = 3
+IMAGE_DELAY = 2  # seconds between thread-page fetches
 
 CLASSIC_FORUMS = [
     ("https://www.bimmerpost.com/forums", 178, "Exterior / Cosmetic Parts",      "part"),
@@ -58,7 +59,6 @@ MODERN_FORUMS = [
 _CLASSIC_THREAD_RE = re.compile(r"td_threadtitle_(\d+)")
 _MODERN_THREAD_RE  = re.compile(r"^thread-row-(\d+)$")
 
-# Multiple date formats seen across Bimmerpost subdomains
 _DATE_PATTERNS = [
     (re.compile(r"\d{2}-\d{2}-\d{4}\s+\d{1,2}:\d{2}\s+[AP]M"), "%m-%d-%Y %I:%M %p"),
     (re.compile(r"\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}"),            "%m-%d-%Y %H:%M"),
@@ -66,6 +66,13 @@ _DATE_PATTERNS = [
     (re.compile(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}"),            "%Y-%m-%d %H:%M"),
     (re.compile(r"\d{4}-\d{2}-\d{2}"),                           "%Y-%m-%d"),
 ]
+
+# Domains/patterns to skip when looking for post images
+_SKIP_IMAGE_DOMAINS = (
+    "vbulletin", "smilie", "sprite", "avatar", "rank", "icon",
+    "clear.gif", "spacer", "logo", "button", "nav", "ad.",
+    "doubleclick", "googlead", "banner",
+)
 
 
 def fetch_page(url: str) -> BeautifulSoup:
@@ -103,7 +110,6 @@ def build_forum_url(base_url: str, forum_id: int, page: int = 1) -> str:
 
 
 def parse_date(raw: str):
-    """Try multiple date formats, return ISO string or None."""
     if not raw:
         return None
     for pattern, fmt in _DATE_PATTERNS:
@@ -121,6 +127,57 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def scrape_thread_image(thread_url: str):
+    """
+    Fetch a Bimmerpost thread page and extract the first meaningful image
+    from the first post body. Returns image URL or None.
+    """
+    try:
+        time.sleep(IMAGE_DELAY)
+        soup = fetch_page(thread_url)
+
+        # vBulletin: first post body is in div.postbody or td.alt1 with class "alt1"
+        post_body = (
+            soup.find("div", class_="postbody")
+            or soup.find("td", class_="alt1")
+            or soup.find("div", id=re.compile(r"post_message_\d+"))
+        )
+        if not post_body:
+            return None
+
+        for img in post_body.find_all("img"):
+            src = img.get("src", "")
+            if not src or not src.startswith("http"):
+                continue
+            src_lower = src.lower()
+            if any(skip in src_lower for skip in _SKIP_IMAGE_DOMAINS):
+                continue
+            # Must be a real image (jpg/png/gif/webp) or attachmentid pattern
+            if (any(ext in src_lower for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"))
+                    or "attachmentid" in src_lower
+                    or "attachment.php" in src_lower):
+                return src
+
+    except Exception:
+        pass
+    return None
+
+
+def save_image_url(listing_url: str, image_url: str) -> None:
+    """Update image_url for a listing by its URL."""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            _q("UPDATE listings SET image_url = ? WHERE url = ? AND image_url IS NULL"),
+            (image_url, listing_url)
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
 def scrape_classic(base_url: str, forum_id: int) -> list:
     soup = fetch_page(build_forum_url(base_url, forum_id))
     results = []
@@ -129,7 +186,6 @@ def scrape_classic(base_url: str, forum_id: int) -> list:
         thread_id = _CLASSIC_THREAD_RE.search(td["id"]).group(1)
         row = td.parent
 
-        # Skip sticky threads
         status_td = row.find("td", id=f"td_threadstatusicon_{thread_id}")
         if status_td:
             icon_div = status_td.find("div")
@@ -143,7 +199,6 @@ def scrape_classic(base_url: str, forum_id: int) -> list:
         title = title_tag.get_text(strip=True)
         thread_url = f"{base_url}/showthread.php?t={thread_id}"
 
-        # Try all td elements in the row for a date
         posted_at = None
         for cell in row.find_all("td"):
             text = cell.get_text(" ", strip=True)
@@ -151,7 +206,6 @@ def scrape_classic(base_url: str, forum_id: int) -> list:
             if posted_at:
                 break
 
-        # Fall back to now if no date found
         if not posted_at:
             posted_at = now_iso()
 
@@ -196,7 +250,7 @@ def domain_of(base_url: str) -> str:
 
 def main():
     init_db()
-    totals = defaultdict(lambda: {"found": 0, "saved": 0, "skipped": 0})
+    totals = defaultdict(lambda: {"found": 0, "saved": 0, "skipped": 0, "images": 0})
     first = True
 
     all_forums = (
@@ -235,16 +289,22 @@ def main():
             )
             if was_saved:
                 totals[domain]["saved"] += 1
+                # Fetch image from thread page for new listings only
+                image_url = scrape_thread_image(listing["url"])
+                if image_url:
+                    save_image_url(listing["url"], image_url)
+                    totals[domain]["images"] += 1
             else:
                 totals[domain]["skipped"] += 1
 
     print("\n--- Totals by subdomain ---")
-    grand_saved = grand_skipped = 0
+    grand_saved = grand_skipped = grand_images = 0
     for domain, counts in totals.items():
-        print(f"  {domain:40s}  found={counts['found']:3d}  saved={counts['saved']:3d}  dupes={counts['skipped']:3d}")
+        print(f"  {domain:40s}  found={counts['found']:3d}  saved={counts['saved']:3d}  images={counts['images']:3d}  dupes={counts['skipped']:3d}")
         grand_saved   += counts["saved"]
         grand_skipped += counts["skipped"]
-    print(f"\n  Grand total — Saved: {grand_saved}  |  Skipped (duplicates): {grand_skipped}")
+        grand_images  += counts["images"]
+    print(f"\n  Grand total — Saved: {grand_saved}  |  Images: {grand_images}  |  Skipped: {grand_skipped}")
 
 
 if __name__ == "__main__":
