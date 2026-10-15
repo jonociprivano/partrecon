@@ -150,11 +150,12 @@ def enrich(listing):
     img = (listing.get("image_url") or "").strip()
     title = listing["title"]
     stamp = "PRICE DROP" if re.search(r'price\s+drop|reduced', title, re.I) else None
-    price_value = parse_price(title)
+    try:
+        price_value = float(listing['price']) if listing.get('price') is not None else None
+    except (ValueError, TypeError):
+        price_value = None
     if price_value is None:
-        try:
-            price_value = float(listing['price']) if listing.get('price') is not None else None
-        except (ValueError,TypeError): price_value=None
+        price_value = parse_price(title)
     display_title = (listing.get("normalized_title") or "").strip() or title
     date_str = listing.get("posted_at") or listing.get("created_at") or ""
     return {
