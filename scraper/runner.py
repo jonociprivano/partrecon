@@ -11,6 +11,7 @@ After scraping, runs the Claude parser on any new (ai_parsed=0) listings.
 """
 
 import sys
+import json
 import logging
 from pathlib import Path
 
@@ -37,8 +38,11 @@ def run_scraper(name: str) -> int:
         raise ValueError(f"Unknown scraper: {name!r}. Use reddit, nam3forum, or bimmerpost.")
 
     logger.info(f"Starting {name} scraper...")
-    main()
-    logger.info(f"{name} scraper complete.")
+    report=main()
+    report['source']=name
+    report['status']='ok' if report['fetched'] > 0 and not report['errors'] else 'needs_attention'
+    logger.info('SOURCE_RESULT %s',json.dumps(report))
+    return report
 
 
 def run_parser():
@@ -60,6 +64,9 @@ def run_parser():
 
     for row in unparsed:
         result = parse_listing(row["title"])
+        if not result.get('_ok',False):
+            failed += 1
+            continue
         try:
             mark_listing_parsed(
                 listing_id=row["id"],
@@ -77,18 +84,20 @@ def run_parser():
             logger.warning(f"  [{row['id']}] Failed to save parse result: {e}")
 
     logger.info(f"Parser: done. Parsed={parsed} Failed={failed}")
+    if failed: raise RuntimeError("Parser failures remain retryable")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python -m scraper.runner <reddit|nam3forum|bimmerpost>")
-        sys.exit(1)
-
-    scraper_name = sys.argv[1].lower()
-
+def main(name):
     try:
-        run_scraper(scraper_name)
+        report=run_scraper(name)
         run_parser()
-    except Exception as e:
-        logger.error(f"Runner failed: {e}")
-        sys.exit(1)
+        return 0 if report['status']=='ok' else 1
+    except Exception as error:
+        logger.error('Runner failed (%s); inspect source status',type(error).__name__)
+        return 1
+
+
+if __name__ == '__main__':
+    if len(sys.argv)!=2:
+        sys.exit('Usage: python -m scraper.runner <reddit|nam3forum|bimmerpost>')
+    sys.exit(main(sys.argv[1].lower()))

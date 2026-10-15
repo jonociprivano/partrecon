@@ -9,7 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from database.db import init_db, insert_listing, detect_post_type, extract_price_float, get_connection, _q
+from database.db import init_db, insert_listing, detect_post_type, extract_price_float, get_connection, _q, image_backfill_candidates, record_image_check
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -250,6 +250,7 @@ def domain_of(base_url: str) -> str:
 
 def main():
     init_db()
+    failures = fetched = 0
     totals = defaultdict(lambda: {"found": 0, "saved": 0, "skipped": 0, "images": 0})
     first = True
 
@@ -271,8 +272,11 @@ def main():
             print(f"  Found {len(listings)} threads.")
         except requests.HTTPError as e:
             print(f"  Skipped — {e}")
+            failures += 1
+            if e.response is not None and e.response.status_code in (401,403,429): break
             continue
 
+        fetched += len(listings)
         totals[domain]["found"] += len(listings)
         for listing in listings:
             t = listing["title"]
@@ -289,22 +293,25 @@ def main():
             )
             if was_saved:
                 totals[domain]["saved"] += 1
-                # Fetch image from thread page for new listings only
-                image_url = scrape_thread_image(listing["url"])
-                if image_url:
-                    save_image_url(listing["url"], image_url)
-                    totals[domain]["images"] += 1
             else:
                 totals[domain]["skipped"] += 1
+
+    if not failures:
+        for candidate in image_backfill_candidates("Bimmerpost"):
+            image_url=scrape_thread_image(candidate['url'])
+            record_image_check(candidate['id'],image_url)
+            if image_url: totals[domain_of(candidate['url'])]['images'] += 1
 
     print("\n--- Totals by subdomain ---")
     grand_saved = grand_skipped = grand_images = 0
     for domain, counts in totals.items():
-        print(f"  {domain:40s}  found={counts['found']:3d}  saved={counts['saved']:3d}  images={counts['images']:3d}  dupes={counts['skipped']:3d}")
+        print(f"  {domain:40s}  found={counts['found']:3d}  saved={counts['saved']:3d}  images={counts['images']:3d}  refreshed={counts['skipped']:3d}")
         grand_saved   += counts["saved"]
         grand_skipped += counts["skipped"]
         grand_images  += counts["images"]
     print(f"\n  Grand total — Saved: {grand_saved}  |  Images: {grand_images}  |  Skipped: {grand_skipped}")
+
+    return {"fetched":fetched,"inserted":grand_saved,"refreshed":grand_skipped,"errors":failures}
 
 
 if __name__ == "__main__":

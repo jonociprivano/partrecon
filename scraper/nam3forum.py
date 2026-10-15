@@ -8,7 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from database.db import init_db, insert_listing, detect_post_type, extract_price_float, get_connection, _q
+from database.db import init_db, insert_listing, detect_post_type, extract_price_float, get_connection, _q, image_backfill_candidates, record_image_check
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -57,7 +57,8 @@ def scrape_thread_image(thread_url: str):
 
         # XenForo: first post body is article.message or div.message-body
         post_body = (
-            soup.find("article", class_=re.compile(r"message"))
+            soup.select_one(".js-post__content-text")
+            or soup.find("article", class_=re.compile(r"message"))
             or soup.find("div", class_="message-body")
             or soup.find("div", class_="bbWrapper")
         )
@@ -79,6 +80,7 @@ def scrape_thread_image(thread_url: str):
             if any(skip in src_lower for skip in _SKIP_IMAGE_DOMAINS):
                 continue
             if (any(ext in src_lower for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"))
+                    or "filedata/fetch" in src_lower
                     or "attachments" in src_lower
                     or "data/attachments" in src_lower):
                 return src
@@ -142,6 +144,7 @@ def scrape_page(url: str) -> list:
 
 def main():
     init_db()
+    failures = fetched = 0
     saved = 0
     skipped = 0
     images = 0
@@ -157,8 +160,11 @@ def main():
             print(f"  Found {len(listings)} listings ({listing_type}).")
         except requests.HTTPError as e:
             print(f"  Skipped — {e}")
+            failures += 1
+            if e.response is not None and e.response.status_code in (401,403,429): break
             continue
 
+        fetched += len(listings)
         for listing in listings:
             t = listing["title"]
             was_saved = insert_listing(
@@ -174,15 +180,18 @@ def main():
             )
             if was_saved:
                 saved += 1
-                # Fetch image from thread page for new listings only
-                image_url = scrape_thread_image(listing["url"])
-                if image_url:
-                    save_image_url(listing["url"], image_url)
-                    images += 1
             else:
                 skipped += 1
 
-    print(f"\nDone. Saved: {saved}  |  Images: {images}  |  Skipped (duplicates): {skipped}")
+    if not failures:
+        for candidate in image_backfill_candidates("NAM3Forum"):
+            image_url=scrape_thread_image(candidate['url'])
+            record_image_check(candidate['id'],image_url)
+            if image_url: images += 1
+
+    print(f"\nDone. Saved: {saved}  |  Images: {images}  |  Refreshed: {skipped}")
+
+    return {"fetched":fetched,"inserted":saved,"refreshed":skipped,"errors":failures}
 
 
 if __name__ == "__main__":

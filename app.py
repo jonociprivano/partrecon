@@ -8,13 +8,16 @@ from pathlib import Path
 
 import cloudinary
 import cloudinary.uploader
-from flask import Flask, render_template, render_template_string, jsonify, request, session, redirect
+from flask import Flask, render_template, render_template_string, jsonify, request, session, redirect, abort
 
 sys.path.insert(0, str(Path(__file__).parent))
 from database.db import (get_listings_by_type, init_email_table, save_email,
                           init_db, insert_submitted_listing, get_submitted_listings,
                           get_pending_count, update_submitted_listing_status,
-                          get_approved_submitted_listings)
+                          get_approved_submitted_listings, get_approved_submission, extract_price_float)
+
+from listing_utils import parse_price, format_price, is_recent
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "partrecon-prod-2026-abc")
@@ -41,7 +44,7 @@ _CHASSIS_RE = {
     code: re.compile(rf'\b{re.escape(code)}\b', re.IGNORECASE)
     for code in [
         "E46","E90","E92","E93",
-        "F80","G80","F87","G87",
+        "F80","F82","G80","G82","F87","G87",
         "F90","G90","F10","X3","X4",
     ]
 }
@@ -117,8 +120,7 @@ def detect_chassis_from_url(url: str) -> list:
 
 
 def extract_price(title):
-    m = _PRICE_RE.search(title)
-    return m.group() if m else ""
+    return format_price(parse_price(title))
 
 
 def format_date(posted_at):
@@ -147,28 +149,27 @@ def enrich(listing):
     chassis = title_chassis + [c for c in url_chassis if c not in title_chassis]
     img = (listing.get("image_url") or "").strip()
     title = listing["title"]
-    sold_m = _SOLD_RE.search(title)
-    if sold_m:
-        word = sold_m.group().upper()
-        stamp = "PRICE DROP" if "price" in word.lower() or "reduced" in word.lower() else "SOLD"
-    else:
-        stamp = None
+    stamp = "PRICE DROP" if re.search(r'price\s+drop|reduced', title, re.I) else None
+    price_value = parse_price(title)
+    if price_value is None:
+        try:
+            price_value = float(listing['price']) if listing.get('price') is not None else None
+        except (ValueError,TypeError): price_value=None
     display_title = (listing.get("normalized_title") or "").strip() or title
     date_str = listing.get("posted_at") or listing.get("created_at") or ""
     return {
         **listing,
         "chassis_csv":      ",".join(chassis),
         "chassis_tags":     chassis,
-        "price":            extract_price(title),
+        "price":            format_price(price_value),
+        "price_value":      price_value,
+        "is_new":           is_recent(listing.get("created_at")),
         "date_fmt":         format_date(date_str),
         "badge_bg":         badge_bg(listing["source"]),
         "has_image":        (
             bool(img)
             and img not in ("self", "default")
             and img.startswith("https://")
-            and "redd.it" not in img
-            and "reddit.com" not in img
-            and "redditstatic.com" not in img
         ),
         "sold_stamp":       stamp,
         "display_title":    display_title,
@@ -181,7 +182,7 @@ def enrich_submitted(listing):
     chassis = listing.get("chassis") or ""
     photos = listing.get("photo_urls_list") or []
     first_photo = photos[0] if photos else None
-    price_str = f"${listing['price']:.0f}" if listing.get("price") else ""
+    price_str = format_price(listing.get('price'))
     return {
         **listing,
         "source":           "PartRecon",
@@ -197,8 +198,9 @@ def enrich_submitted(listing):
         "display_title":    listing.get("title", ""),
         "part_type_bucket": normalize_part_type(listing.get("part_type", "")),
         "post_type":        "FS",
-        "url":              listing.get("external_url") or f"/listing/submitted/{listing['id']}",
-        "is_new":           1,
+        "url":              safe_external_url(listing.get("external_url")) or f"/listing/submitted/{listing['id']}",
+        "is_new":           is_recent(listing.get("created_at")),
+        "price_value":      listing.get("price"),
         "normalized_title": listing.get("title", ""),
     }
 
@@ -256,6 +258,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
 .card-media { position: relative; flex-shrink: 0; }
 .new-badge { position: absolute; top: 8px; left: 8px; background: #2B4EFF; color: #fff; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; z-index: 1; line-height: 1.5; }
 .card-img { width: 100%; height: 140px; object-fit: cover; display: block; }
+.card-placeholder[hidden], .card-img[hidden] { display:none; }
 .card-placeholder { width: 100%; height: 140px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
 .card-placeholder-grid { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(6,1fr); grid-template-rows: repeat(4,1fr); }
 .card-placeholder-grid div { border: 0.5px solid rgba(255,255,255,0.06); }
@@ -305,7 +308,8 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
   .price-range input { flex: 1; width: auto; min-width: 0; }
   #sort-select  { width: 100%; }
   .card-img        { height: 100px; }
-  .card-placeholder { height: 100px; }
+  .card-placeholder[hidden], .card-img[hidden] { display:none; }
+.card-placeholder { height: 100px; }
   .pagination { justify-content: center; }
 }
 </style>
@@ -386,14 +390,15 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
        data-type="{{ listing.listing_type | e }}"
        data-chassis="{{ listing.chassis_csv | e }}"
        data-title="{{ listing.display_title | lower | e }}"
-       data-price="{{ listing.price if listing.price is not none else '' }}"
+       data-price="{{ listing.price_value if listing.price_value is not none else '' }}"
        data-post-type="{{ (listing.post_type or 'UNKNOWN') | e }}"
        data-part-type="{{ listing.part_type_bucket | e }}">
 
       <div class="card-media">
-        {% if listing.is_new %}<span class="new-badge">New</span>{% endif %}
+        {% if listing.is_new %}<span class="new-badge">Newly found</span>{% endif %}
         {% if listing.has_image %}
-          <img class="card-img" src="{{ listing.image_url }}" alt="" loading="lazy" />
+          <img class="card-img" src="{{ listing.image_url }}" alt="{{ listing.display_title | e }}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false" />
+          <div class="card-placeholder" hidden><span class="card-placeholder-text">Part&middot;Recon</span></div>
         {% else %}
           <div class="card-placeholder">
             <div class="card-placeholder-grid">
@@ -417,7 +422,7 @@ body { background: #efefed; font-family: -apple-system, BlinkMacSystemFont, 'Seg
         {% endif %}
         <div class="card-footer">
           <span class="source-badge" style="background:{{ listing.badge_bg }}">{{ listing.source }}</span>
-          <span class="card-date">{{ listing.date_fmt }}</span>
+          <span class="card-date" title="Last checked: {{ listing.last_checked_at or 'not recorded' }}">{{ listing.date_fmt }}</span>
         </div>
       </div>
 
@@ -1178,6 +1183,21 @@ def admin_required(f):
     return decorated
 
 
+def safe_external_url(url):
+    try: parsed=urlparse(url or '')
+    except ValueError: return ''
+    return url if parsed.scheme in ('http','https') and parsed.hostname and not parsed.username and not parsed.password else ''
+
+
+@app.route('/listing/submitted/<int:listing_id>')
+def submitted_detail(listing_id):
+    listing=get_approved_submission(listing_id)
+    if not listing: abort(404)
+    listing['external_url']=safe_external_url(listing.get('external_url'))
+    listing['photo_urls_list']=[u for u in listing.get('photo_urls_list',[]) if isinstance(u,str) and safe_external_url(u)]
+    return render_template('submitted_detail.html',listing=listing,price=format_price(listing.get('price')))
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
@@ -1226,6 +1246,9 @@ def sell():
         contact_email = (request.form.get("contact_email") or "").strip()
         external_url  = (request.form.get("external_url") or "").strip()
 
+        if external_url and not safe_external_url(external_url):
+            return jsonify({"ok":False,"error":"Use an http or https listing URL"}),400
+
         if not title:
             return jsonify({"ok": False, "error": "Title is required"}), 400
         if not contact_email or not re.match(r'^[^@]+@[^@]+\.[^@]+$', contact_email):
@@ -1234,9 +1257,11 @@ def sell():
         price = None
         if price_raw:
             try:
+                import math
                 price = float(price_raw)
+                if not math.isfinite(price) or price < 0: raise ValueError()
             except ValueError:
-                pass
+                return jsonify({"ok":False,"error":"Enter a valid nonnegative price"}),400
 
         photo_urls = []
         photos = request.files.getlist("photos")

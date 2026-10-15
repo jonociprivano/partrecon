@@ -30,12 +30,8 @@ _ANCHORED_RE = re.compile(
 )
 
 def is_listing(title: str) -> bool:
-    lower = title.lower()
-    if any(skip in lower for skip in SKIP_SIGNALS):
-        return False
-    if any(signal in lower for signal in ANYWHERE_SIGNALS):
-        return True
-    return bool(_ANCHORED_RE.search(title))
+    from listing_utils import is_marketplace_post
+    return is_marketplace_post(title,'reddit')
 
 def parse_image_url(data: dict):
     """
@@ -82,13 +78,17 @@ def main():
     saved = 0
     filtered = 0
     skipped = 0
+    fetched = failures = 0
     for subreddit in SUBREDDITS:
         print(f"Fetching r/{subreddit}...")
         try:
             posts = fetch_new_posts(subreddit)
         except requests.HTTPError as e:
             print(f"  Skipped — {e}")
+            failures += 1
+            if e.response is not None and e.response.status_code in (401,403,429): break
             continue
+        fetched += len(posts)
         for post in posts:
             data = post["data"]
             title = data["title"]
@@ -112,6 +112,8 @@ def main():
             else:
                 skipped += 1
     print(f"\nDone. Saved: {saved}  |  Filtered out: {filtered}  |  Skipped (duplicates): {skipped}")
+
+    return {"fetched":fetched,"inserted":saved,"refreshed":skipped,"errors":failures}
 
 if __name__ == "__main__":
     main()
