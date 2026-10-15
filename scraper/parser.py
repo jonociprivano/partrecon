@@ -84,14 +84,20 @@ def parse_listing(title: str) -> dict:
             if raw.startswith("json"):
                 raw = raw[4:]
         result = json.loads(raw)
+        if not isinstance(result,dict) or not all(isinstance(result.get(k),str) for k in ('part_type','condition','normalized_title')):
+            raise ValueError('Invalid parser fields')
+        if result['condition'] not in ('New','Used','Unknown') or not result['normalized_title'].strip():
+            raise ValueError('Invalid parser values')
         return {
+            "_ok":              True,
             "part_type":        str(result.get("part_type", "Unknown"))[:100],
             "condition":        str(result.get("condition", "Unknown"))[:20],
             "normalized_title": str(result.get("normalized_title", title))[:200],
         }
     except Exception as e:
-        logger.warning(f"Parser failed for title '{title[:60]}': {e}")
+        logger.warning("Parser failed; input remains retryable (%s)", type(e).__name__)
         return {
+            "_ok":              False,
             "part_type":        "Unknown",
             "condition":        "Unknown",
             "normalized_title": title[:200],

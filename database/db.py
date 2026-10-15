@@ -7,6 +7,7 @@ import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from listing_utils import parse_price, native_identity, dedupe, is_available, is_marketplace_post
 
 # ── Classification utilities ─────────────────────────────────────────────────
 _WTB_RE     = re.compile(r'\b(wtb|want\s+to\s+buy|looking\s+for)\b', re.IGNORECASE)
@@ -25,13 +26,7 @@ def detect_post_type(title: str) -> str:
 
 
 def extract_price_float(title: str):
-    m = _PRICE_RE.search(title)
-    if not m:
-        return None
-    num = float(m.group(1).replace(',', ''))
-    if m.group(2):
-        num *= 1000
-    return round(num, 2)
+    return parse_price(title)
 
 
 # ── DB config ────────────────────────────────────────────────────────────────
@@ -105,6 +100,7 @@ def init_db():
         cur = conn.cursor()
 
         if _is_pg():
+            cur.execute("SELECT pg_advisory_xact_lock(90622002)")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS listings (
                     id                SERIAL PRIMARY KEY,
@@ -227,6 +223,12 @@ def init_db():
                 )
             """)
 
+        for name in ('last_checked_at','image_checked_at'):
+            if _is_pg():
+                cur.execute(f"ALTER TABLE listings ADD COLUMN IF NOT EXISTS {name} TEXT")
+            else:
+                columns={r[1] for r in cur.execute('PRAGMA table_info(listings)')}
+                if name not in columns: cur.execute(f"ALTER TABLE listings ADD COLUMN {name} TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -241,7 +243,8 @@ def get_listings_by_type(listing_type: str) -> list:
             _q("SELECT * FROM listings WHERE listing_type = ? ORDER BY posted_at DESC"),
             (listing_type,),
         )
-        return _fetchall(cur)
+        rows=dedupe(_fetchall(cur))
+        return [r for r in rows if is_available(r['title']) and is_marketplace_post(r['title'],r['source'])]
     finally:
         conn.close()
 
@@ -272,32 +275,37 @@ def get_listings_by_source(source: str, exclude_id: int, limit: int = 4) -> list
 
 def insert_listing(source, title, url, image_url, post_text, posted_at,
                    listing_type="part", post_type=None, price=None) -> bool:
-    if post_type is None:
-        post_type = detect_post_type(title)
-    if price is None:
-        price = extract_price_float(title)
-    created_at = datetime.now(timezone.utc).isoformat()
-    conn = get_connection()
+    if not is_marketplace_post(title,source):
+        return False
+    post_type=post_type or detect_post_type(title)
+    if price is None: price=extract_price_float(title)
+    now=datetime.now(timezone.utc).isoformat()
+    conn=get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute(
-            _q("""
-            INSERT INTO listings
-                (source, title, url, image_url, post_text, posted_at,
-                 created_at, listing_type, post_type, price, is_new,
-                 part_type, condition, normalized_title, ai_parsed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1,
-                    'Unknown', 'Unknown', ?, 0)
-            """),
-            (source, title, url, image_url, post_text, posted_at,
-             created_at, listing_type, post_type, price, title),
-        )
+        cur=conn.cursor()
+        if _is_pg(): cur.execute("SELECT pg_advisory_xact_lock(90622001)")
+        else: cur.execute("BEGIN IMMEDIATE")
+        cur.execute(_q("SELECT * FROM listings WHERE source = ? ORDER BY id DESC"),(source,))
+        key=native_identity(source,url)
+        existing=next((r for r in _fetchall(cur) if native_identity(source,r['url'])==key),None)
+        if existing:
+            changed=existing['title']!=title
+            cur.execute(_q("""UPDATE listings SET title=?, price=?, post_type=?, listing_type=?,
+                image_url=COALESCE(NULLIF(?,''), image_url), post_text=COALESCE(NULLIF(?,''),post_text),
+                posted_at=COALESCE(posted_at,?), last_checked_at=?,
+                normalized_title=CASE WHEN ? THEN ? ELSE normalized_title END,
+                ai_parsed=CASE WHEN ? THEN 0 ELSE ai_parsed END WHERE id=?"""),
+                (title,price,post_type,listing_type,image_url,post_text,posted_at,now,changed,title,changed,existing['id']))
+            conn.commit()
+            return False
+        cur.execute(_q("""INSERT INTO listings
+            (source,title,url,image_url,post_text,posted_at,created_at,listing_type,post_type,price,is_new,part_type,condition,normalized_title,ai_parsed,last_checked_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,1,'Unknown','Unknown',?,0,?)"""),
+            (source,title,url,image_url,post_text,posted_at,now,listing_type,post_type,price,title,now))
         conn.commit()
         return True
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        if _is_unique_error(e):
-            return False
         raise
     finally:
         conn.close()
@@ -386,7 +394,7 @@ def insert_submitted_listing(title, price, chassis, part_type, condition,
         else:
             cur.execute("SELECT last_insert_rowid()")
         row = cur.fetchone()
-        return row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]
+        return row[0]
     finally:
         conn.close()
 
@@ -416,7 +424,7 @@ def get_pending_count() -> int:
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM submitted_listings WHERE status = 'pending'")
         row = cur.fetchone()
-        return (row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]) or 0
+        return (row[0]) or 0
     finally:
         conn.close()
 
@@ -451,3 +459,37 @@ def get_approved_submitted_listings() -> list:
         return rows
     finally:
         conn.close()
+
+def get_approved_submission(listing_id):
+    conn=get_connection()
+    try:
+        cur=conn.cursor()
+        cur.execute(_q("SELECT * FROM submitted_listings WHERE id=? AND status='approved'"),(listing_id,))
+        row=_fetchone(cur)
+        if row:
+            try: row['photo_urls_list']=json.loads(row.get('photo_urls') or '[]')
+            except (ValueError,TypeError): row['photo_urls_list']=[]
+        return row
+    finally: conn.close()
+
+
+def image_backfill_candidates(source,limit=8):
+    from datetime import timedelta
+    cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
+    conn=get_connection()
+    try:
+        cur=conn.cursor()
+        cur.execute(_q("""SELECT * FROM listings WHERE source=? AND (image_url IS NULL OR image_url='')
+            AND (image_checked_at IS NULL OR image_checked_at<?) ORDER BY id DESC LIMIT ?"""),(source,cutoff,limit))
+        return [r for r in dedupe(_fetchall(cur)) if is_available(r['title'])]
+    finally: conn.close()
+
+
+def record_image_check(listing_id,image_url):
+    conn=get_connection()
+    try:
+        cur=conn.cursor()
+        cur.execute(_q("UPDATE listings SET image_url=COALESCE(NULLIF(?,''),image_url),image_checked_at=? WHERE id=?"),
+            (image_url,datetime.now(timezone.utc).isoformat(),listing_id))
+        conn.commit()
+    finally: conn.close()

@@ -1,15 +1,17 @@
 import re
+import os
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from urllib.parse import urljoin, urlsplit, urlencode
 from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from database.db import init_db, insert_listing, detect_post_type, extract_price_float, get_connection, _q
+from database.db import init_db, insert_listing, detect_post_type, extract_price_float, image_backfill_candidates, record_image_check
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -75,43 +77,43 @@ _SKIP_IMAGE_DOMAINS = (
 )
 
 
+_BROWSER_FETCHER = None
+
+
 def fetch_page(url: str) -> BeautifulSoup:
+    if _BROWSER_FETCHER is not None:
+        return _BROWSER_FETCHER.load(url)
     response = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
     response.raise_for_status()
     return BeautifulSoup(response.text, "html.parser")
 
 
-def get_session_token(base_url: str) -> str:
-    try:
-        soup = fetch_page(base_url + "/forums/")
-        for a in soup.find_all("a", href=True):
-            m = re.search(r"[?&]s=([a-f0-9]{32})", a["href"])
-            if m:
-                return m.group(1)
-    except Exception:
-        pass
-    return ""
-
-
-_SESSION_CACHE: dict = {}
-
-
 def build_forum_url(base_url: str, forum_id: int, page: int = 1) -> str:
-    if base_url not in _SESSION_CACHE:
-        _SESSION_CACHE[base_url] = get_session_token(base_url)
-    token = _SESSION_CACHE[base_url]
-    if token:
-        url = f"{base_url}/forums/forumdisplay.php?s={token}&f={forum_id}"
+    # Both legacy /forums bases and hostname-only bases occur in the inventory.
+    origin = "{0.scheme}://{0.netloc}".format(urlsplit(base_url))
+    if origin == "https://f80.bimmerpost.com" and forum_id == 619:
+        path = "/forums/showforum/619/wheels-tires"
+        query = {"sortby": 1, "sortorder": 0}
     else:
-        url = f"{base_url}/forumdisplay.php?f={forum_id}"
+        path = "/forums/forumdisplay.php"
+        query = {"f": forum_id, "sortby": 1, "sortorder": 0}
     if page > 1:
-        url += f"&page={page}"
-    return url
+        query["page"] = page
+    return origin + path + "?" + urlencode(query)
 
 
-def parse_date(raw: str):
+def parse_date(raw: str, now=None):
     if not raw:
         return None
+    now = now or datetime.now(timezone.utc)
+    relative = re.search(r"\b(\d+)\s+(minute|hour|day|week)s?\s+ago\b", raw, re.I)
+    if relative:
+        amount, unit = relative.groups()
+        delta = timedelta(**{unit.lower() + "s": int(amount)})
+        return (now - delta).isoformat()
+    if re.search(r"\b(today|yesterday)\b", raw, re.I):
+        day = now - timedelta(days=1 if "yesterday" in raw.lower() else 0)
+        return day.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     for pattern, fmt in _DATE_PATTERNS:
         m = pattern.search(raw)
         if m:
@@ -123,10 +125,6 @@ def parse_date(raw: str):
     return None
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def scrape_thread_image(thread_url: str):
     """
     Fetch a Bimmerpost thread page and extract the first meaningful image
@@ -136,50 +134,65 @@ def scrape_thread_image(thread_url: str):
         time.sleep(IMAGE_DELAY)
         soup = fetch_page(thread_url)
 
-        # vBulletin: first post body is in div.postbody or td.alt1 with class "alt1"
-        post_body = (
-            soup.find("div", class_="postbody")
-            or soup.find("td", class_="alt1")
-            or soup.find("div", id=re.compile(r"post_message_\d+"))
-        )
-        if not post_body:
-            return None
+        return parse_thread_image(soup, thread_url)
 
-        for img in post_body.find_all("img"):
-            src = img.get("src", "")
-            if not src or not src.startswith("http"):
-                continue
-            src_lower = src.lower()
-            if any(skip in src_lower for skip in _SKIP_IMAGE_DOMAINS):
-                continue
-            # Must be a real image (jpg/png/gif/webp) or attachmentid pattern
-            if (any(ext in src_lower for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"))
-                    or "attachmentid" in src_lower
-                    or "attachment.php" in src_lower):
-                return src
-
+    except requests.HTTPError:
+        raise
     except Exception:
         pass
     return None
 
 
-def save_image_url(listing_url: str, image_url: str) -> None:
-    """Update image_url for a listing by its URL."""
-    try:
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute(
-            _q("UPDATE listings SET image_url = ? WHERE url = ? AND image_url IS NULL"),
-            (image_url, listing_url)
-        )
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass
+def parse_thread_image(soup, thread_url):
+    # Stay inside the original post; avatars and reply images are not listing photos.
+    article = soup.select_one("article[data-postid]")
+    post_body = (article.select_one(".postbit__content") if article else None)
+    post_body = (post_body or soup.find("div", id=re.compile(r"post_message_\d+"))
+                 or soup.find("div", class_="postbody"))
+    if not post_body:
+        return None
+    for img in post_body.find_all("img"):
+        src = urljoin(thread_url, img.get("src", "")) if img.get("src") else ""
+        if not src.startswith(("https://", "http://")):
+            continue
+        lower = src.lower()
+        if any(skip in lower for skip in _SKIP_IMAGE_DOMAINS):
+            continue
+        if any(ext in lower for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", "attachment.php")):
+            return src
+    return None
+
+
+def parse_modern(soup, base_url, now=None):
+    results = []
+    for row in soup.find_all("div", id=_MODERN_THREAD_RE):
+        if any("sticky" in cls for cls in row.get("class", [])):
+            continue
+        anchor = row.select_one(".thread_title a[href]")
+        if not anchor:
+            continue
+        title = anchor.get_text(" ", strip=True)
+        badges = row.select_one(".thread_classifieds_badge")
+        badge_text = badges.get_text(" ", strip=True) if badges else ""
+        if re.search(r"\bSOLD\b", badge_text, re.I):
+            title = "[SOLD] " + title
+        elif re.search(r"\bWTB\b", badge_text, re.I) and not re.search(r"\bWTB\b", title, re.I):
+            title = "[WTB] " + title
+        author = row.select_one(".thread_author_info")
+        # Deliberately exclude .thread_lastpost: a bump is not the listing date.
+        posted_at = parse_date(author.get_text(" ", strip=True), now=now) if author else None
+        price_tag = badges.select_one(".c_price") if badges else None
+        price = extract_price_float(price_tag.get_text(strip=True)) if price_tag else None
+        results.append({"title": title, "url": urljoin(base_url, anchor["href"]),
+                        "posted_at": posted_at, "price": price,
+                        "post_type": detect_post_type(title)})
+    return results
 
 
 def scrape_classic(base_url: str, forum_id: int) -> list:
     soup = fetch_page(build_forum_url(base_url, forum_id))
+    if soup.find("div", id=_MODERN_THREAD_RE):
+        return parse_modern(soup, base_url)
     results = []
 
     for td in soup.find_all("td", id=_CLASSIC_THREAD_RE):
@@ -206,42 +219,13 @@ def scrape_classic(base_url: str, forum_id: int) -> list:
             if posted_at:
                 break
 
-        if not posted_at:
-            posted_at = now_iso()
-
         results.append({"title": title, "url": thread_url, "posted_at": posted_at})
 
     return results
 
 
 def scrape_modern(base_url: str, forum_id: int) -> list:
-    soup = fetch_page(f"{base_url}/forums/forumdisplay.php?f={forum_id}")
-    results = []
-
-    for div in soup.find_all("div", id=_MODERN_THREAD_RE):
-        title_div = div.find("div", class_="thread_title")
-        if not title_div:
-            continue
-        title_tag = title_div.find("a")
-        if not title_tag:
-            continue
-
-        title = title_tag.get_text(strip=True)
-        href = title_tag["href"]
-        thread_url = f"{base_url}{href}" if href.startswith("/") else href
-
-        posted_at = None
-        author_div = div.find("div", class_="thread_author_info")
-        if author_div:
-            text = author_div.get_text(" ", strip=True)
-            posted_at = parse_date(text)
-
-        if not posted_at:
-            posted_at = now_iso()
-
-        results.append({"title": title, "url": thread_url, "posted_at": posted_at})
-
-    return results
+    return scrape_classic(base_url, forum_id)
 
 
 def domain_of(base_url: str) -> str:
@@ -249,7 +233,21 @@ def domain_of(base_url: str) -> str:
 
 
 def main():
+    global _BROWSER_FETCHER
+    if os.environ.get("BIMMERPOST_TRANSPORT", "http") == "browser":
+        from scraper.bimmerpost_browser import BrowserPageFetcher
+        with BrowserPageFetcher() as browser:
+            _BROWSER_FETCHER = browser
+            try:
+                return _run()
+            finally:
+                _BROWSER_FETCHER = None
+    return _run()
+
+
+def _run():
     init_db()
+    failures = fetched = 0
     totals = defaultdict(lambda: {"found": 0, "saved": 0, "skipped": 0, "images": 0})
     first = True
 
@@ -269,10 +267,16 @@ def main():
         try:
             listings = scrape_classic(base_url, forum_id) if style == "classic" else scrape_modern(base_url, forum_id)
             print(f"  Found {len(listings)} threads.")
+            if not listings:
+                failures += 1
+                print("  No recognized listing rows; source needs attention.")
         except requests.HTTPError as e:
             print(f"  Skipped — {e}")
+            failures += 1
+            if e.response is not None and e.response.status_code in (401,403,429): break
             continue
 
+        fetched += len(listings)
         totals[domain]["found"] += len(listings)
         for listing in listings:
             t = listing["title"]
@@ -284,27 +288,34 @@ def main():
                 post_text="",
                 posted_at=listing["posted_at"],
                 listing_type=listing_type,
-                post_type=detect_post_type(t),
-                price=extract_price_float(t),
+                post_type=listing.get("post_type") or detect_post_type(t),
+                price=listing["price"] if "price" in listing else extract_price_float(t),
             )
             if was_saved:
                 totals[domain]["saved"] += 1
-                # Fetch image from thread page for new listings only
-                image_url = scrape_thread_image(listing["url"])
-                if image_url:
-                    save_image_url(listing["url"], image_url)
-                    totals[domain]["images"] += 1
             else:
                 totals[domain]["skipped"] += 1
+
+    if not failures:
+        for candidate in image_backfill_candidates("Bimmerpost"):
+            try:
+                image_url=scrape_thread_image(candidate['url'])
+            except requests.HTTPError:
+                failures += 1
+                break
+            record_image_check(candidate['id'],image_url)
+            if image_url: totals[domain_of(candidate['url'])]['images'] += 1
 
     print("\n--- Totals by subdomain ---")
     grand_saved = grand_skipped = grand_images = 0
     for domain, counts in totals.items():
-        print(f"  {domain:40s}  found={counts['found']:3d}  saved={counts['saved']:3d}  images={counts['images']:3d}  dupes={counts['skipped']:3d}")
+        print(f"  {domain:40s}  found={counts['found']:3d}  saved={counts['saved']:3d}  images={counts['images']:3d}  refreshed={counts['skipped']:3d}")
         grand_saved   += counts["saved"]
         grand_skipped += counts["skipped"]
         grand_images  += counts["images"]
     print(f"\n  Grand total — Saved: {grand_saved}  |  Images: {grand_images}  |  Skipped: {grand_skipped}")
+
+    return {"fetched":fetched,"inserted":grand_saved,"refreshed":grand_skipped,"errors":failures}
 
 
 if __name__ == "__main__":
